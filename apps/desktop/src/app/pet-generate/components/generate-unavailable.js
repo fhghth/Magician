@@ -1,0 +1,10 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Button } from '@/components/ui/button';
+import { ExternalLink } from '@/lib/external-link';
+import { PawPrint, Settings2 } from '@/lib/icons';
+// Shown when no reference-capable image backend is configured: generation is
+// impossible, so we replace the prompt entirely with a friendly path to set one
+// up (in-app) plus where to grab a key.
+export function GenerateUnavailable({ onSetup }) {
+    return (_jsxs("div", { className: "flex flex-col items-center gap-4 text-center", children: [_jsx("span", { className: "grid size-11 place-items-center rounded-full bg-primary/10 text-primary", children: _jsx(PawPrint, { className: "size-5" }) }), _jsxs("div", { className: "space-y-1.5", children: [_jsx("p", { className: "text-[length:var(--conversation-text-font-size)] font-semibold", children: "Add an image backend to generate" }), _jsx("p", { className: "mx-auto max-w-[19rem] text-[length:var(--conversation-caption-font-size)] leading-relaxed text-(--ui-text-tertiary)", children: "Hatching a custom pet needs a provider that can ground on a reference image." })] }), _jsxs(Button, { onClick: onSetup, size: "sm", children: [_jsx(Settings2, { className: "size-4" }), "Set up image generation"] }), _jsxs("p", { className: "flex flex-wrap items-center justify-center gap-x-1.5 text-[0.6875rem] text-(--ui-text-tertiary)", children: [_jsx("span", { children: "Grab a key from" }), _jsx(ExternalLink, { href: "https://portal.nousresearch.com", showExternalIcon: false, children: "Nous Portal" }), _jsx("span", { children: "\u00B7" }), _jsx(ExternalLink, { className: "opacity-40 transition-opacity hover:opacity-100", href: "https://openrouter.ai/keys", showExternalIcon: false, children: "OpenRouter" }), _jsx("span", { children: "\u00B7" }), _jsx(ExternalLink, { className: "opacity-40 transition-opacity hover:opacity-100", href: "https://platform.openai.com/api-keys", showExternalIcon: false, children: "OpenAI" })] })] }));
+}

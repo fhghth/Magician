@@ -1,0 +1,518 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ShikiHighlighter from 'react-shiki';
+import { Streamdown } from 'streamdown';
+import { requestComposerFocus, requestComposerInsertRefs } from '@/app/chat/composer/focus';
+import { droppedFileInlineRef } from '@/app/chat/composer/inline-refs';
+import { HERMES_PATHS_MIME } from '@/app/chat/hooks/use-composer-actions';
+import { isAddSelectionShortcut } from '@/app/right-sidebar/terminal/selection';
+import { RichCodeBlock } from '@/components/assistant-ui/embeds';
+import { CodeEditor } from '@/components/chat/code-editor';
+import { FileDiffPanel } from '@/components/chat/diff-lines';
+import { chunkTextLines, useFixedRowWindow } from '@/components/chat/fixed-row-window';
+import { PageLoader } from '@/components/page-loader';
+import { translateNow, useI18n } from '@/i18n';
+import { desktopFileDiff, desktopGitRoot, readDesktopFileDataUrl, readDesktopFileText, writeDesktopFileText } from '@/lib/desktop-fs';
+import { Check, Pencil, X } from '@/lib/icons';
+import { shikiLanguageForFilename } from '@/lib/markdown-code';
+import { cn } from '@/lib/utils';
+import { setPreviewDirty } from '@/store/preview-edit';
+import { $currentCwd } from '@/store/session';
+import { notifyWorkspaceChanged } from '@/store/workspace-events';
+const SHIKI_THEME = { dark: 'github-dark-default', light: 'github-light-default' };
+const TEXT_PREVIEW_MAX_BYTES = 512 * 1024;
+const SOURCE_CHUNK_LINES = 200;
+const SOURCE_LINE_PX = 20;
+const SOURCE_OVERSCAN_LINES = 400;
+const TONE_STYLES = {
+    neutral: {
+        cube: 'text-muted-foreground/35',
+        primary: 'border-border bg-background text-foreground hover:bg-accent'
+    },
+    warning: {
+        cube: 'text-amber-500/70 dark:text-amber-300/70',
+        primary: 'border-amber-400/40 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-300/30 dark:bg-amber-300/15 dark:text-amber-100 dark:hover:bg-amber-300/20'
+    }
+};
+function PreviewCubeIcon({ className }) {
+    return (_jsxs("svg", { "aria-hidden": "true", className: cn('size-16', className), viewBox: "0 0 64 64", children: [_jsx("path", { d: "M32 5 56 18.5v27L32 59 8 45.5v-27L32 5Z", fill: "none", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.25" }), _jsx("path", { d: "M8 18.5 32 32l24-13.5M32 32v27", fill: "none", stroke: "currentColor", strokeLinejoin: "round", strokeWidth: "1.25" }), _jsx("path", { d: "M20 11.75 44 25.25", fill: "none", opacity: "0.45", stroke: "currentColor", strokeWidth: "0.9" })] }));
+}
+export function PreviewEmptyState({ body, consoleHeight = 0, primaryAction, secondaryAction, title, tone = 'neutral' }) {
+    const styles = TONE_STYLES[tone];
+    return (_jsx("div", { className: "absolute inset-x-0 top-0 z-10 grid place-items-center bg-background px-8 py-10 text-center bottom-(--preview-error-bottom)", style: { '--preview-error-bottom': `${consoleHeight}px` }, children: _jsxs("div", { className: "grid max-w-sm justify-items-center gap-5", children: [_jsx(PreviewCubeIcon, { className: styles.cube }), _jsxs("div", { className: "grid gap-2", children: [_jsx("div", { className: "text-sm font-medium text-foreground", children: title }), body && _jsx("div", { className: "text-xs leading-relaxed text-muted-foreground", children: body })] }), (primaryAction || secondaryAction) && (_jsxs("div", { className: "grid justify-items-center gap-2", children: [primaryAction && (_jsx("button", { className: cn('rounded-full border px-3.5 py-1.5 text-xs font-medium shadow-xs transition-colors disabled:cursor-default disabled:opacity-60', styles.primary), disabled: primaryAction.disabled, onClick: primaryAction.onClick, type: "button", children: primaryAction.label })), secondaryAction && (_jsx("button", { className: "text-[0.6875rem] font-medium text-muted-foreground underline decoration-current/20 underline-offset-4 transition-colors hover:text-foreground disabled:cursor-default disabled:text-muted-foreground/55 disabled:no-underline", disabled: secondaryAction.disabled, onClick: secondaryAction.onClick, type: "button", children: secondaryAction.label }))] }))] }) }));
+}
+// True when focus is in a field that should swallow plain keystrokes (so the
+// bare-`e` edit shortcut never fires while the user is typing in the composer,
+// a search box, or the editor itself).
+function isTypableElement(el) {
+    if (!el) {
+        return false;
+    }
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+function filePathForTarget(target) {
+    if (target.path) {
+        return target.path;
+    }
+    try {
+        const url = new URL(target.url);
+        return url.protocol === 'file:' ? decodeURIComponent(url.pathname) : target.url;
+    }
+    catch {
+        return target.url;
+    }
+}
+function formatBytes(bytes) {
+    if (!bytes) {
+        return translateNow('preview.unknownSize');
+    }
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
+}
+function looksBinaryBytes(bytes) {
+    if (!bytes.length) {
+        return false;
+    }
+    let suspicious = 0;
+    for (const byte of bytes.slice(0, 4096)) {
+        if (byte === 0) {
+            return true;
+        }
+        if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
+            suspicious += 1;
+        }
+    }
+    return suspicious / Math.min(bytes.length, 4096) > 0.12;
+}
+async function readTextPreview(filePath) {
+    try {
+        return await readDesktopFileText(filePath);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes("No handler registered for 'hermes:readFileText'")) {
+            throw error;
+        }
+    }
+    // Back-compat for a running Electron process whose preload hasn't been
+    // restarted since readFileText was added. readFileDataUrl already existed.
+    const dataUrl = await window.hermesDesktop.readFileDataUrl(filePath);
+    const [, metadata = '', data = ''] = dataUrl.match(/^data:([^,]*),(.*)$/) || [];
+    const base64 = metadata.includes(';base64');
+    const mimeType = metadata.replace(/;base64$/, '') || undefined;
+    const raw = base64 ? atob(data) : decodeURIComponent(data);
+    const bytes = Uint8Array.from(raw, ch => ch.charCodeAt(0));
+    return {
+        binary: looksBinaryBytes(bytes),
+        byteSize: bytes.byteLength,
+        mimeType,
+        path: filePath,
+        text: new TextDecoder().decode(bytes)
+    };
+}
+// Lightweight markdown renderer for file previews. Streamdown does the parse;
+// our components keep typography simple and route fenced code through Shiki
+// without the library's copy/download/fullscreen chrome.
+const MD_TAG_CLASSES = {
+    h1: 'mb-3 mt-6 text-3xl font-bold leading-tight tracking-tight first:mt-0',
+    h2: 'mb-2.5 mt-5 text-2xl font-semibold leading-snug tracking-tight first:mt-0',
+    h3: 'mb-2 mt-4 text-xl font-semibold leading-snug first:mt-0',
+    h4: 'mb-2 mt-3 text-base font-semibold leading-snug first:mt-0',
+    p: 'mb-4 leading-relaxed text-foreground last:mb-0',
+    ul: 'mb-4 list-disc pl-6 marker:text-muted-foreground/70 last:mb-0',
+    ol: 'mb-4 list-decimal pl-6 marker:text-muted-foreground/70 last:mb-0',
+    li: 'mt-1 leading-relaxed',
+    blockquote: 'mb-4 border-l-2 border-border pl-3 text-muted-foreground italic last:mb-0',
+    pre: 'mb-4 overflow-hidden rounded-lg border border-border bg-card font-mono text-xs leading-relaxed last:mb-0 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-3 [&_pre]:font-mono'
+};
+function tagged(Tag) {
+    const base = MD_TAG_CLASSES[Tag];
+    const Component = (({ className, ...rest }) => {
+        const Element = Tag;
+        return _jsx(Element, { className: cn(base, className), ...rest });
+    });
+    Component.displayName = `Md.${Tag}`;
+    return Component;
+}
+function MarkdownCode({ className, children, ...props }) {
+    const language = /language-([^\s]+)/.exec(className || '')?.[1];
+    if (!language) {
+        return (_jsx("code", { className: cn('rounded bg-muted px-1 py-0.5 font-mono text-[0.86em] text-pink-700 dark:text-pink-300', className), ...props, children: children }));
+    }
+    const code = String(children).replace(/\n$/, '');
+    const highlighted = (_jsx(ShikiHighlighter, { addDefaultStyles: false, as: "div", defaultColor: "light-dark()", delay: 80, language: language, showLanguage: false, theme: SHIKI_THEME, children: code }));
+    // ```mermaid / ```svg fences route to the shared lazy renderers (same
+    // registry the chat transcript uses); everything else stays on Shiki.
+    return _jsx(RichCodeBlock, { code: code, fallback: highlighted, language: language });
+}
+const MARKDOWN_COMPONENTS = {
+    h1: tagged('h1'),
+    h2: tagged('h2'),
+    h3: tagged('h3'),
+    h4: tagged('h4'),
+    p: tagged('p'),
+    ul: tagged('ul'),
+    ol: tagged('ol'),
+    li: tagged('li'),
+    blockquote: tagged('blockquote'),
+    pre: tagged('pre'),
+    code: MarkdownCode
+};
+function MarkdownPreview({ text }) {
+    return (_jsx("div", { className: "preview-markdown mx-auto max-w-3xl px-4 py-3 text-sm text-foreground", "data-selectable-text": "true", children: _jsx(Streamdown, { components: MARKDOWN_COMPONENTS, controls: false, mode: "static", parseIncompleteMarkdown: false, children: text }) }));
+}
+function PreviewModeSwitcher({ active, modes, onSelect, trailing }) {
+    const { t } = useI18n();
+    const showModes = modes.length > 1;
+    if (!showModes && !trailing) {
+        return null;
+    }
+    const label = {
+        diff: t.preview.diff,
+        rendered: t.preview.renderedPreview,
+        source: t.preview.source
+    };
+    return (_jsxs("div", { className: "flex h-7 shrink-0 items-center justify-end gap-3 border-b border-border/40 px-3", children: [showModes &&
+                modes.map(mode => (_jsx("button", { className: cn('text-[0.625rem] font-bold underline-offset-4 transition-colors', mode === active
+                        ? 'text-foreground underline decoration-current/30'
+                        : 'text-muted-foreground hover:text-foreground'), onClick: () => onSelect(mode), type: "button", children: label[mode] }, mode))), trailing && _jsx("div", { className: "flex items-center gap-1.5", children: trailing })] }));
+}
+// Cancel / Save controls rendered as the header's trailing slot (not a bar of
+// their own) so edit mode reuses the read-mode header row verbatim.
+function EditControls({ dirty, onCancel, onSave, saving }) {
+    const { t } = useI18n();
+    return (_jsxs(_Fragment, { children: [_jsxs("button", { className: "flex items-center gap-1 rounded-md px-1.5 text-[0.625rem] font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", onClick: onCancel, type: "button", children: [_jsx(X, { className: "size-3" }), t.common.cancel] }), _jsxs("button", { className: "flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-[0.625rem] font-bold text-primary-foreground shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50", disabled: !dirty || saving, onClick: onSave, type: "button", children: [_jsx(Check, { className: "size-3" }), saving ? t.common.saving : t.common.save] })] }));
+}
+function startLineDrag(event, filePath, { end, start }) {
+    const lineEnd = end > start ? end : undefined;
+    const label = lineEnd ? `${filePath}:${start}-${end}` : `${filePath}:${start}`;
+    event.dataTransfer.setData(HERMES_PATHS_MIME, JSON.stringify([{ line: start, lineEnd, path: filePath }]));
+    event.dataTransfer.setData('text/plain', label);
+    event.dataTransfer.effectAllowed = 'copy';
+}
+function SourceView({ filePath, language, text }) {
+    const { t } = useI18n();
+    const chunks = useMemo(() => chunkTextLines(text, SOURCE_CHUNK_LINES), [text]);
+    const lastChunk = chunks.at(-1);
+    const totalLines = lastChunk ? lastChunk.start + lastChunk.lines.length : 0;
+    const { afterRows, beforeRows, endChunk, onScroll, scrollerRef, startChunk } = useFixedRowWindow({
+        overscanRows: SOURCE_OVERSCAN_LINES,
+        rowPx: SOURCE_LINE_PX,
+        rowsPerChunk: SOURCE_CHUNK_LINES,
+        totalRows: totalLines
+    });
+    const visibleChunks = chunks.slice(startChunk, endChunk + 1);
+    const [selection, setSelection] = useState(null);
+    const inSelection = (line) => selection != null && line >= selection.start && line <= selection.end;
+    const handleLineClick = (event, line) => {
+        if (event.shiftKey && selection) {
+            setSelection({ end: Math.max(selection.end, line), start: Math.min(selection.start, line) });
+            return;
+        }
+        if (selection?.start === line && selection.end === line) {
+            setSelection(null);
+            return;
+        }
+        setSelection({ end: line, start: line });
+    };
+    const handleDragStart = (event, line) => {
+        startLineDrag(event, filePath, inSelection(line) && selection ? selection : { end: line, start: line });
+    };
+    // ⌘/Ctrl+L with a line selection drops the same `@line:path:start-end` ref the
+    // gutter drag produces — so the keyboard path mirrors dragging the lines into
+    // the composer. Capture-phase + stopPropagation so it beats the terminal's
+    // global ⌘L handler (which would otherwise grab the native text selection).
+    useEffect(() => {
+        if (!selection) {
+            return;
+        }
+        const onKeyDown = (event) => {
+            if (!isAddSelectionShortcut(event)) {
+                return;
+            }
+            const lineEnd = selection.end > selection.start ? selection.end : undefined;
+            const ref = droppedFileInlineRef({ line: selection.start, lineEnd, path: filePath }, $currentCwd.get());
+            if (!ref) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            requestComposerInsertRefs([ref]);
+            requestComposerFocus('main');
+        };
+        window.addEventListener('keydown', onKeyDown, { capture: true });
+        return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+    }, [filePath, selection]);
+    return (_jsx("div", { className: "h-full overflow-auto", onScroll: onScroll, ref: scrollerRef, children: _jsxs("div", { className: "grid min-w-max grid-cols-[auto_minmax(0,1fr)] font-mono text-[0.7rem] leading-relaxed", children: [beforeRows > 0 && _jsx("div", { "aria-hidden": true, className: "col-span-2", style: { height: beforeRows * SOURCE_LINE_PX } }), visibleChunks.map(chunk => (_jsxs(Fragment, { children: [_jsx("div", { className: "select-none text-right text-muted-foreground/55", children: chunk.lines.map((_lineText, offset) => {
+                                const line = chunk.start + offset + 1;
+                                const selected = inSelection(line);
+                                return (_jsx("div", { className: cn('h-5 w-9 cursor-pointer pr-2 leading-5 tabular-nums transition-colors', selected
+                                        ? 'bg-amber-200/45 text-amber-900 dark:bg-amber-300/20 dark:text-amber-100'
+                                        : 'hover:text-foreground'), draggable: true, onClick: event => handleLineClick(event, line), onDragStart: event => handleDragStart(event, line), title: t.preview.sourceLineTitle, children: line }, line));
+                            }) }), _jsx("div", { className: "preview-source-code min-w-0 [&_pre]:m-0", "data-selectable-text": "true", children: _jsx(ShikiHighlighter, { addDefaultStyles: false, as: "div", defaultColor: "light-dark()", delay: 80, language: language || 'text', showLanguage: false, theme: SHIKI_THEME, children: chunk.text }) })] }, chunk.start))), afterRows > 0 && _jsx("div", { "aria-hidden": true, className: "col-span-2", style: { height: afterRows * SOURCE_LINE_PX } })] }) }));
+}
+export function LocalFilePreview({ reloadKey, target }) {
+    const { t } = useI18n();
+    const [state, setState] = useState({ loading: true });
+    const [forcePreview, setForcePreview] = useState(false);
+    // User-picked view; null = auto (diff when changed, else rendered markdown,
+    // else source). Reset when the previewed file changes.
+    const [userMode, setUserMode] = useState(null);
+    // Spot-editor state. The editor owns its buffer (keyed by `editorKey`); the
+    // live draft + the snapshot the user started from live in refs so typing
+    // never re-renders this (large) component — `dirty` is the only render-worthy
+    // signal and it flips just once when crossing the clean↔dirty boundary.
+    // `selfReload` re-runs the load after a save without the parent.
+    const [editing, setEditing] = useState(false);
+    const draftRef = useRef('');
+    const baselineRef = useRef('');
+    const [dirty, setDirty] = useState(false);
+    const [editorKey, setEditorKey] = useState(0);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState(null);
+    const [conflict, setConflict] = useState(false);
+    const [selfReload, setSelfReload] = useState(0);
+    // For the bare-`e` shortcut: the read-view root (to detect focus-within) and a
+    // hover flag (no state — only the keydown handler reads it).
+    const readViewRef = useRef(null);
+    const hoverRef = useRef(false);
+    const filePath = filePathForTarget(target);
+    const isImage = target.previewKind === 'image';
+    useEffect(() => {
+        setUserMode(null);
+        setEditing(false);
+        setDirty(false);
+        setSaving(false);
+        setSaveError(null);
+        setConflict(false);
+        draftRef.current = '';
+        baselineRef.current = '';
+    }, [filePath, reloadKey]);
+    // HTML files are rendered as source code, not in a webview - so they take
+    // the same path as plain text files. `previewKind === 'binary'` arrives
+    // when the file is forcibly previewed past the binary refusal screen.
+    const isText = target.previewKind === 'text' || target.previewKind === 'binary' || target.previewKind === 'html';
+    const blockedByTarget = !isImage && !forcePreview && (target.binary || target.large);
+    useEffect(() => {
+        let active = true;
+        async function load() {
+            if (blockedByTarget) {
+                setState({ loading: false });
+                return;
+            }
+            if (!isImage && !isText) {
+                setState({ loading: false });
+                return;
+            }
+            setState({ loading: true });
+            try {
+                if (isImage) {
+                    // Prefer bytes the caller already handed us (a pasted/dropped
+                    // screenshot) over re-reading a path that may be transient/unreadable.
+                    const dataUrl = target.dataUrl || (await readDesktopFileDataUrl(filePath));
+                    if (active) {
+                        setState({ dataUrl, loading: false });
+                    }
+                    return;
+                }
+                const result = await readTextPreview(filePath);
+                if (active) {
+                    const shouldBlock = !forcePreview && (result.binary || (result.byteSize ?? 0) > TEXT_PREVIEW_MAX_BYTES);
+                    setState({
+                        binary: result.binary,
+                        byteSize: result.byteSize,
+                        language: result.language || target.language || 'text',
+                        loading: false,
+                        text: shouldBlock ? undefined : result.text,
+                        truncated: result.truncated
+                    });
+                    // Best-effort: fetch the file's working-tree-vs-HEAD diff so the
+                    // preview can offer a DIFF view when there are uncommitted changes.
+                    // Empty (clean file / not a repo / remote) just hides the option.
+                    if (!shouldBlock) {
+                        try {
+                            const root = await desktopGitRoot(filePath);
+                            const diff = root ? await desktopFileDiff(root, filePath) : '';
+                            if (active && diff.trim()) {
+                                setState(prev => (prev.text === result.text ? { ...prev, diff } : prev));
+                            }
+                        }
+                        catch {
+                            // No diff available; the preview just shows source.
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                if (active) {
+                    setState({
+                        error: error instanceof Error ? error.message : String(error),
+                        loading: false
+                    });
+                }
+            }
+        }
+        void load();
+        return () => {
+            active = false;
+        };
+    }, [blockedByTarget, filePath, forcePreview, isImage, isText, reloadKey, selfReload, target.dataUrl, target.language]);
+    // Editing is only offered for whole, readable text — never images, binaries,
+    // or files we only loaded the first 512 KB of (saving would drop the tail).
+    const canEdit = isText && !isImage && !blockedByTarget && state.text !== undefined && !state.truncated && !state.binary;
+    // Per-keystroke: update the draft ref (no render) and only set `dirty` when it
+    // actually changes — React bails on an identical value, so a long typing run
+    // triggers a single re-render at most.
+    const handleEditorChange = useCallback((value) => {
+        draftRef.current = value;
+        const next = value !== baselineRef.current;
+        setDirty(prev => (prev === next ? prev : next));
+    }, []);
+    // Publish the unsaved state to the rail so the tab can show a modified dot.
+    // Keyed by url; cleared on unmount/tab-change so a stale dot never lingers.
+    useEffect(() => {
+        setPreviewDirty(target.url, editing && dirty);
+        return () => setPreviewDirty(target.url, false);
+    }, [target.url, editing, dirty]);
+    const beginEdit = () => {
+        const text = state.text ?? '';
+        baselineRef.current = text;
+        draftRef.current = text;
+        setDirty(false);
+        setEditorKey(key => key + 1);
+        setSaving(false);
+        setSaveError(null);
+        setConflict(false);
+        setEditing(true);
+    };
+    // Latest `beginEdit` for the keydown listener, so the listener can stay
+    // subscribed across renders without recreating itself or going stale.
+    const beginEditRef = useRef(beginEdit);
+    beginEditRef.current = beginEdit;
+    // Bare `e` enters edit mode when the file pane is hovered or focused and no
+    // typable field has focus — a fast, button-free path (double-click felt laggy
+    // because of the browser's click-disambiguation delay).
+    useEffect(() => {
+        if (!canEdit || editing) {
+            return;
+        }
+        const onKeyDown = (event) => {
+            if (event.key !== 'e' || event.metaKey || event.ctrlKey || event.altKey) {
+                return;
+            }
+            if (isTypableElement(document.activeElement)) {
+                return;
+            }
+            const root = readViewRef.current;
+            const focusWithin = Boolean(root && document.activeElement && root.contains(document.activeElement));
+            if (!hoverRef.current && !focusWithin) {
+                return;
+            }
+            event.preventDefault();
+            beginEditRef.current();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [canEdit, editing]);
+    const cancelEdit = () => {
+        setEditing(false);
+        setSaveError(null);
+        setConflict(false);
+    };
+    const discardAndReload = () => {
+        setEditing(false);
+        setConflict(false);
+        setSaveError(null);
+        setSelfReload(n => n + 1);
+    };
+    const saveEdit = async (force = false) => {
+        if (saving) {
+            return;
+        }
+        setSaving(true);
+        setSaveError(null);
+        try {
+            // Stale-on-disk guard: re-read what's on disk now and compare to the
+            // snapshot the user started from. If something changed underneath (an
+            // agent edit, an external save), don't clobber it silently — surface the
+            // choice. `force` is the user picking "overwrite" from that banner.
+            if (!force) {
+                try {
+                    const current = await readTextPreview(filePath);
+                    if (!current.binary && (current.text ?? '') !== baselineRef.current) {
+                        setConflict(true);
+                        setSaving(false);
+                        return;
+                    }
+                }
+                catch {
+                    // Couldn't re-read for the check — fall through and attempt the write.
+                }
+            }
+            await writeDesktopFileText(filePath, draftRef.current);
+            baselineRef.current = draftRef.current;
+            setDirty(false);
+            setConflict(false);
+            setEditing(false);
+            notifyWorkspaceChanged();
+            setSelfReload(n => n + 1);
+        }
+        catch (error) {
+            setSaveError(error instanceof Error ? error.message : String(error));
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+    // Rendered before the loading/error branches so a background re-read (file
+    // watcher, workspace tick) can't unmount the editor and drop the draft. Uses
+    // the SAME container + fixed-height header as the read view so entering edit
+    // never shifts the body — only the trailing controls and the body swap.
+    if (editing) {
+        return (_jsxs("div", { className: "flex h-full flex-col overflow-hidden bg-transparent", children: [_jsx(PreviewModeSwitcher, { active: "source", modes: [], onSelect: () => { }, trailing: _jsx(EditControls, { dirty: dirty, onCancel: cancelEdit, onSave: () => void saveEdit(), saving: saving }) }), conflict && (_jsxs("div", { className: "shrink-0 border-b border-amber-400/40 bg-amber-50 px-3 py-2 text-[0.7rem] text-amber-900 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-100", children: [_jsx("div", { className: "font-semibold", children: t.preview.diskChangedTitle }), _jsx("div", { className: "mt-0.5 leading-relaxed", children: t.preview.diskChangedBody }), _jsxs("div", { className: "mt-1.5 flex gap-3", children: [_jsx("button", { className: "font-bold underline underline-offset-4 transition-opacity hover:opacity-80", onClick: () => void saveEdit(true), type: "button", children: t.preview.overwrite }), _jsx("button", { className: "font-bold underline underline-offset-4 transition-opacity hover:opacity-80", onClick: discardAndReload, type: "button", children: t.preview.discardReload })] })] })), saveError && (_jsx("div", { className: "shrink-0 border-b border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[0.7rem] text-destructive", children: t.preview.saveFailed(saveError) })), _jsx("div", { className: "min-h-0 flex-1 overflow-hidden", children: _jsx(CodeEditor, { filePath: filePath, initialValue: baselineRef.current, onCancel: cancelEdit, onChange: handleEditorChange, onSave: () => void saveEdit() }, editorKey) })] }));
+    }
+    if (state.loading) {
+        return _jsx(PageLoader, { label: t.preview.loading });
+    }
+    if (state.error) {
+        return _jsx(PreviewEmptyState, { body: state.error, title: t.preview.unavailable });
+    }
+    if (!isImage &&
+        !forcePreview &&
+        (target.binary || target.large || state.binary || (state.byteSize ?? 0) > TEXT_PREVIEW_MAX_BYTES)) {
+        const binary = target.binary || state.binary;
+        const size = target.byteSize || state.byteSize;
+        return (_jsx(PreviewEmptyState, { body: binary ? t.preview.binaryBody(target.label) : t.preview.largeBody(target.label, formatBytes(size)), primaryAction: { label: t.preview.previewAnyway, onClick: () => setForcePreview(true) }, title: binary ? t.preview.binaryTitle : t.preview.largeTitle, tone: "warning" }));
+    }
+    if (isImage && state.dataUrl) {
+        return (_jsx("div", { className: "flex h-full w-full items-center justify-center overflow-auto bg-transparent p-4", children: _jsx("img", { alt: target.label, className: "max-h-full max-w-full rounded-lg object-contain shadow-sm", draggable: false, src: state.dataUrl }) }));
+    }
+    if (isText && state.text !== undefined) {
+        const isMarkdown = (state.language || target.language) === 'markdown';
+        const hasDiff = Boolean(state.diff && state.diff.trim());
+        // Order the toggle reads left→right; default lands on the most useful view.
+        const modes = [];
+        if (isMarkdown) {
+            modes.push('rendered');
+        }
+        modes.push('source');
+        if (hasDiff) {
+            modes.push('diff');
+        }
+        const autoMode = hasDiff ? 'diff' : isMarkdown ? 'rendered' : 'source';
+        const mode = userMode && modes.includes(userMode) ? userMode : autoMode;
+        return (_jsxs("div", { className: "flex h-full flex-col overflow-hidden bg-transparent", onMouseEnter: () => {
+                hoverRef.current = true;
+            }, onMouseLeave: () => {
+                hoverRef.current = false;
+            }, ref: readViewRef, children: [state.truncated && (_jsx("div", { className: "border-b border-border/60 bg-muted/35 px-3 py-1.5 text-[0.68rem] text-muted-foreground", children: t.preview.truncated })), _jsx(PreviewModeSwitcher, { active: mode, modes: modes, onSelect: setUserMode, trailing: canEdit ? (_jsxs("button", { className: "flex items-center gap-1 text-[0.625rem] font-bold text-muted-foreground underline-offset-4 transition-colors hover:text-foreground", onClick: beginEdit, title: `${t.preview.edit} (e)`, type: "button", children: [_jsx(Pencil, { className: "size-3" }), t.preview.edit] })) : null }), _jsx("div", { className: "min-h-0 flex-1 overflow-auto", children: mode === 'rendered' ? (_jsx(MarkdownPreview, { text: state.text })) : mode === 'diff' ? (_jsx(FileDiffPanel, { className: "mx-0 mb-0 h-full max-h-none", diff: state.diff ?? '', fullText: state.text, path: filePath, showLineNumbers: true })) : (_jsx(SourceView, { filePath: filePath, language: shikiLanguageForFilename(filePath) || state.language || 'text', text: state.text })) })] }));
+    }
+    return _jsx(PreviewEmptyState, { body: t.preview.noInlineBody(target.mimeType || ''), title: t.preview.noInlineTitle });
+}

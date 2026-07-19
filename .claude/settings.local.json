@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs wc -l)",
+      "Bash(mv ./apps/desktop/electron/replace-refs.js ./apps/desktop/electron/replace-refs.cjs)",
+      "Bash(node replace-refs.cjs)",
+      "Bash(npm *)",
+      "Bash(node *)",
+      "Bash(ELECTRON_MIRROR=\"https://npmmirror.com/mirrors/electron/\" npm install electron@40.10.2 --no-save)",
+      "Bash(GITHUB_SHA=\"0000000000000000000000000000000000000000\" npm run dist:win:nsis -w apps/desktop)",
+      "Bash(perl -pi -e 's/\\(?<![.\\\\x27\\\\x22\\\\x60\\\\w]\\)BOOTSTRAP_COMPLETE_MARKER\\(?=\\\\s*[,\\\\\\)\\\\}\\\\]\\\\s\\\\/]|$\\)/getBootstrapCompleteMarker\\(\\)/g' \"C:/Users/wy140/Desktop/hermes-agent-main/apps/desktop/electron/main.ts\")",
+      "Bash(perl -pi -e 's/\\(?<![.\\\\x27\\\\x22\\\\x60\\\\w]\\)DESKTOP_LOG_PATH\\(?=\\\\s*[,\\\\\\)\\\\}\\\\]\\\\s\\\\/]|$\\)/getDesktopLogPath\\(\\)/g' \"C:/Users/wy140/Desktop/hermes-agent-main/apps/desktop/electron/main.ts\")"
+    ]
+  }
+}

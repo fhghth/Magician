@@ -1,0 +1,202 @@
+import { useEffect, useRef, useState } from 'react';
+function micError(error, copy) {
+    const name = error instanceof DOMException ? error.name : '';
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+        return new Error(copy.microphonePermissionDenied);
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        return new Error(copy.noMicrophone);
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+        return new Error(copy.microphoneInUse);
+    }
+    if (name === 'OverconstrainedError') {
+        return new Error(copy.microphoneConstraintsUnsupported);
+    }
+    if (error instanceof Error) {
+        return error;
+    }
+    return new Error(copy.microphoneStartFailed);
+}
+export function useMicRecorder(copy) {
+    const [level, setLevel] = useState(0);
+    const [recording, setRecording] = useState(false);
+    const recorderRef = useRef(null);
+    const streamRef = useRef(null);
+    const chunksRef = useRef([]);
+    const audioContextRef = useRef(null);
+    const animationRef = useRef(null);
+    const startedAtRef = useRef(0);
+    const heardSpeechRef = useRef(false);
+    const silenceTriggeredRef = useRef(false);
+    const silenceStartedAtRef = useRef(null);
+    const stopResolverRef = useRef(null);
+    const cleanup = () => {
+        if (animationRef.current) {
+            window.cancelAnimationFrame(animationRef.current);
+            animationRef.current = null;
+        }
+        void audioContextRef.current?.close();
+        audioContextRef.current = null;
+        streamRef.current?.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        setLevel(0);
+        setRecording(false);
+        silenceTriggeredRef.current = false;
+    };
+    useEffect(() => () => cleanup(), []);
+    const startMeter = (stream, options) => {
+        const audioWindow = window;
+        const AudioContextCtor = window.AudioContext || audioWindow.webkitAudioContext;
+        if (!AudioContextCtor) {
+            return;
+        }
+        try {
+            const audioContext = new AudioContextCtor();
+            const analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser.fftSize = 256;
+            const data = new Uint8Array(analyser.fftSize);
+            source.connect(analyser);
+            audioContextRef.current = audioContext;
+            const tick = () => {
+                analyser.getByteTimeDomainData(data);
+                let sum = 0;
+                for (const value of data) {
+                    const centered = value - 128;
+                    sum += centered * centered;
+                }
+                const rms = Math.sqrt(sum / data.length);
+                const normalized = Math.min(1, rms / 42);
+                const now = Date.now();
+                setLevel(normalized);
+                options.onLevel?.(normalized);
+                const speechThreshold = options.silenceLevel ?? 0;
+                const silenceMs = options.silenceMs ?? 0;
+                const idleSilenceMs = options.idleSilenceMs ?? 0;
+                if (speechThreshold > 0 && options.onSilence && !silenceTriggeredRef.current) {
+                    if (normalized >= speechThreshold) {
+                        heardSpeechRef.current = true;
+                        silenceStartedAtRef.current = null;
+                    }
+                    else if (heardSpeechRef.current && silenceMs > 0) {
+                        silenceStartedAtRef.current ??= now;
+                        if (now - silenceStartedAtRef.current >= silenceMs) {
+                            silenceTriggeredRef.current = true;
+                            options.onSilence();
+                            return;
+                        }
+                    }
+                    else if (!heardSpeechRef.current && idleSilenceMs > 0 && now - startedAtRef.current >= idleSilenceMs) {
+                        silenceTriggeredRef.current = true;
+                        options.onSilence();
+                        return;
+                    }
+                }
+                animationRef.current = window.requestAnimationFrame(tick);
+            };
+            tick();
+        }
+        catch {
+            setLevel(0);
+        }
+    };
+    const start = async (options = {}) => {
+        if (recorderRef.current) {
+            return;
+        }
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            throw new Error(copy.microphoneUnsupported);
+        }
+        const permitted = await window.hermesDesktop?.requestMicrophoneAccess?.();
+        if (permitted === false) {
+            throw new Error(copy.microphoneAccessDenied);
+        }
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true }
+            });
+        }
+        catch (error) {
+            throw micError(error, copy);
+        }
+        const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/wav'].find(type => MediaRecorder.isTypeSupported(type)) ?? '';
+        let recorder;
+        try {
+            recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        }
+        catch (error) {
+            stream.getTracks().forEach(track => track.stop());
+            throw micError(error, copy);
+        }
+        chunksRef.current = [];
+        streamRef.current = stream;
+        recorderRef.current = recorder;
+        heardSpeechRef.current = false;
+        silenceTriggeredRef.current = false;
+        silenceStartedAtRef.current = null;
+        startedAtRef.current = Date.now();
+        recorder.ondataavailable = event => {
+            if (event.data.size > 0) {
+                chunksRef.current.push(event.data);
+            }
+        };
+        recorder.onstop = () => {
+            const chunks = chunksRef.current;
+            const recordingType = recorder.mimeType || mimeType || 'audio/webm';
+            const durationMs = Date.now() - startedAtRef.current;
+            const heardSpeech = heardSpeechRef.current;
+            chunksRef.current = [];
+            cleanup();
+            const resolver = stopResolverRef.current;
+            stopResolverRef.current = null;
+            if (!chunks.length) {
+                resolver?.(null);
+                return;
+            }
+            resolver?.({
+                audio: new Blob(chunks, { type: recordingType }),
+                durationMs,
+                heardSpeech
+            });
+        };
+        recorder.onerror = event => {
+            const error = micError(event.error, copy);
+            const resolver = stopResolverRef.current;
+            stopResolverRef.current = null;
+            cleanup();
+            options.onError?.(error);
+            resolver?.(null);
+        };
+        recorder.start();
+        setRecording(true);
+        startMeter(stream, options);
+    };
+    const stop = () => new Promise(resolve => {
+        const recorder = recorderRef.current;
+        if (!recorder || recorder.state === 'inactive') {
+            cleanup();
+            resolve(null);
+            return;
+        }
+        stopResolverRef.current = resolve;
+        recorder.stop();
+    });
+    const cancel = () => {
+        const recorder = recorderRef.current;
+        const resolver = stopResolverRef.current;
+        stopResolverRef.current = null;
+        if (recorder && recorder.state !== 'inactive') {
+            recorder.ondataavailable = null;
+            recorder.onerror = null;
+            recorder.onstop = null;
+            recorder.stop();
+        }
+        cleanup();
+        resolver?.(null);
+    };
+    const handle = { start, stop, cancel };
+    return { handle, level, recording };
+}

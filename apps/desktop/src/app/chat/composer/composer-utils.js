@@ -1,0 +1,35 @@
+import { setSessionPickerOpen } from '@/store/session';
+export const COMPOSER_STACK_BREAKPOINT_PX = 320;
+// A single editor line is ~28px (--composer-input-min-height 1.625rem + 0.5rem
+// vertical padding). Anything taller means the text wrapped to a second line,
+// which is when the composer should expand to the stacked layout.
+export const COMPOSER_SINGLE_LINE_MAX_PX = 36;
+export const COMPOSER_FADE_BACKGROUND = 'linear-gradient(to bottom, transparent, color-mix(in srgb, var(--dt-background) 10%, transparent))';
+// Quiet period after the last keystroke before persisting the draft;
+// unmount/pagehide flushes bypass it.
+export const DRAFT_PERSIST_DEBOUNCE_MS = 400;
+export const pickPlaceholder = (pool) => pool[Math.floor(Math.random() * pool.length)];
+/** Completion items can carry an `action` (set in use-slash-completions) that
+ *  runs a side effect on pick instead of inserting a chip — e.g. the session
+ *  picker's "Browse all…" entry opens the overlay. Table-driven so new action
+ *  items are a registry row, not a composer branch. */
+export const COMPLETION_ACTIONS = {
+    'session-picker': () => setSessionPickerOpen(true)
+};
+/** Map a picked `/` completion to its pill accent. Driven by the completion
+ *  group set in use-slash-completions (Skills / Themes / Commands|Options). */
+export function slashChipKindForItem(item) {
+    const group = item.metadata?.group;
+    if (group === 'Skills') {
+        return 'skill';
+    }
+    if (group === 'Themes') {
+        return 'theme';
+    }
+    return 'command';
+}
+/** A `/` query is at its arg stage once it's past the command name. */
+export const slashArgStage = (query) => query.includes(' ');
+/** The `/command` token of a slash query (`personality x` → `/personality`). */
+export const slashCommandToken = (query) => `/${query.split(/\s+/, 1)[0]?.toLowerCase() ?? ''}`;
+export const cloneAttachments = (attachments) => attachments.map(a => ({ ...a }));
