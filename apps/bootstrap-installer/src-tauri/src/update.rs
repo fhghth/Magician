@@ -407,6 +407,15 @@ async fn run_update(app: AppHandle) -> Result<()> {
     }
     emit_stage(&app, "rebuild", StageState::Succeeded, Some(rebuild_ms), None);
 
+    // ---- stage (implicit): replace NSIS shell app.asar -------------------
+    // On Windows NSIS installs the Electron shell is a static launcher:
+    // Hermes.exe + Chromium runtime live in the install root, and the
+    // backend + config live in data\ next to it.  After a rebuild, the
+    // freshly-built app.asar (frontend JS/CSS) must be copied into the
+    // shell's resources\ directory so the next relaunch picks it up.
+    // Atomic rename (tmp → dst) guards against partial-write corruption.
+    replace_nsis_shell_asar(&app, &install_root).await;
+
     let launch_target = if let Some(target_app) = target_app {
         let started = Instant::now();
         emit_stage(&app, "install", StageState::Running, None, None);
@@ -617,6 +626,97 @@ fn is_locked(path: &Path) -> bool {
     match std::fs::OpenOptions::new().read(true).write(true).open(path) {
         Ok(_) => false,
         Err(_) => true,
+    }
+}
+
+/// Best-effort: copy the freshly-built `app.asar` from the unpacked release
+/// tree into the static NSIS shell's `resources\` directory.  On NSIS installs
+/// the shell binary is never replaced — only its frontend payload is swapped
+/// in place via an atomic rename.
+///
+/// Detection: HERMES_HOME is `data\` inside the NSIS install root.  The shell
+/// sits one directory up; its `resources\` folder confirms the layout.
+/// Non-NSIS installs (or any I/O error) are silently skipped so the updater
+/// never fails because of a missing/misplaced shell.
+async fn replace_nsis_shell_asar(app: &AppHandle, install_root: &Path) {
+    if !cfg!(target_os = "windows") {
+        return;
+    }
+
+    let hermes_home = crate::paths::hermes_home();
+    let nsis_root = match hermes_home.parent() {
+        Some(p) if hermes_home
+            .file_name()
+            .map(|n| n == "data")
+            .unwrap_or(false) =>
+        {
+            p.to_path_buf()
+        }
+        _ => return,
+    };
+
+    let resources = nsis_root.join("resources");
+    if !resources.is_dir() {
+        return;
+    }
+
+    let src_asar = install_root
+        .join("apps")
+        .join("desktop")
+        .join("release")
+        .join("win-unpacked")
+        .join("resources")
+        .join("app.asar");
+
+    if !src_asar.exists() {
+        emit_log(
+            app,
+            Some("rebuild"),
+            LogStream::Stdout,
+            "[rebuild] no new app.asar found; skipping NSIS shell replacement",
+        );
+        return;
+    }
+
+    let dst_asar = resources.join("app.asar");
+
+    emit_log(
+        app,
+        Some("rebuild"),
+        LogStream::Stdout,
+        &format!(
+            "[rebuild] replacing NSIS shell app.asar -> {}",
+            dst_asar.display()
+        ),
+    );
+
+    // Atomic replace: copy to tmp, then rename.  On Windows a rename on the
+    // same volume is atomic; if it fails the original app.asar stays intact.
+    let tmp = dst_asar.with_extension("asar.tmp");
+    let _ = std::fs::remove_file(&tmp);
+
+    if let Err(e) = std::fs::copy(&src_asar, &tmp) {
+        emit_log(
+            app,
+            Some("rebuild"),
+            LogStream::Stderr,
+            &format!("[rebuild] failed to copy app.asar: {e}"),
+        );
+    } else if let Err(e) = std::fs::rename(&tmp, &dst_asar) {
+        emit_log(
+            app,
+            Some("rebuild"),
+            LogStream::Stderr,
+            &format!("[rebuild] failed to rename app.asar: {e}"),
+        );
+        let _ = std::fs::remove_file(&tmp);
+    } else {
+        emit_log(
+            app,
+            Some("rebuild"),
+            LogStream::Stdout,
+            "[rebuild] NSIS shell app.asar replaced successfully",
+        );
     }
 }
 

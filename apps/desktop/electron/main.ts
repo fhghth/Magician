@@ -109,6 +109,7 @@ import {
   collectRelaunchArgs,
   collectRelaunchEnv,
   decideRelaunchOutcome,
+  isNsisLayout,
   resolveUnpackedRelease,
   sandboxFallbackFromEnv,
   sandboxPreflight
@@ -293,21 +294,31 @@ if (INSTALL_STAMP) {
 // getHermesHome() beneath the throwaway userData dir so a fresh-install run never
 // touches the user's real ~/.hermes / %LOCALAPPDATA%\hermes.
 function resolveHermesHome() {
+  // 1. Explicit env var always wins — Unix/Windows universal convention.
   if (process.env.HERMES_HOME) {
     return normalizeHermesHomeRoot(process.env.HERMES_HOME)
   }
 
+  // 2. NSIS packaged install on Windows: data lives next to the exe in data\.
+  //    The user chose the install drive in the NSIS dialog; honour that choice
+  //    by co-locating the backend agent + config with the Electron shell.
+  if (IS_PACKAGED && IS_WINDOWS) {
+    const resolved = path.join(path.dirname(process.execPath), 'data')
+    console.log(`[hermes] NSIS layout: HERMES_HOME resolved to ${resolved}`)
+    return resolved
+  }
+
+  // 3. USER_DATA_OVERRIDE (test:desktop:fresh sandbox).
   if (USER_DATA_OVERRIDE) {
     return path.join(path.resolve(USER_DATA_OVERRIDE), 'hermes-home')
   }
 
+  // 4. Registry (HKCU\Environment\HERMES_HOME).  A GUI app launched from
+  //    Explorer inherits the environment block captured at login, so a
+  //    HERMES_HOME set via `setx` AFTER login is invisible in process.env
+  //    even though the CLI (a fresh shell) sees it (#45471).  Consult the
+  //    live User-scoped registry value before the OS default.
   if (IS_WINDOWS) {
-    // A GUI app launched from Explorer inherits the environment block captured
-    // at login, so a HERMES_HOME set via `setx` AFTER login is invisible in
-    // process.env even though the CLI (a fresh shell) sees it. Without this the
-    // backend silently falls back to %LOCALAPPDATA%\hermes and reports "No
-    // inference provider configured" despite a valid configured home (#45471).
-    // Consult the live User-scoped registry value before the default below.
     const fromRegistry = readWindowsUserEnvVar('HERMES_HOME')
 
     if (fromRegistry) {
@@ -315,6 +326,7 @@ function resolveHermesHome() {
     }
   }
 
+  // 5. OS default.
   if (IS_WINDOWS && process.env.LOCALAPPDATA) {
     const localappdata = path.join(process.env.LOCALAPPDATA, 'hermes')
     const legacy = path.join(app.getPath('home'), '.hermes')
@@ -2296,7 +2308,19 @@ function resolveUpdaterBinary() {
   const name = IS_WINDOWS ? 'hermes-setup.exe' : 'hermes-setup'
   const candidate = path.join(getHermesHome(), name)
 
-  return fileExists(candidate) ? candidate : null
+  if (fileExists(candidate)) {
+    return candidate
+  }
+
+  // NSIS layout: HERMES_HOME = <root>\data\, updater sits in <root>\ next to data\.
+  if (IS_WINDOWS && IS_PACKAGED) {
+    const nsisCandidate = path.join(path.dirname(getHermesHome()), name)
+    if (nsisCandidate !== candidate && fileExists(nsisCandidate)) {
+      return nsisCandidate
+    }
+  }
+
+  return null
 }
 
 function repairMacUpdaterHelper(updater) {
@@ -2909,15 +2933,21 @@ async function applyUpdatesPosixInApp(opts: any) {
   //       ("quit and never came back"). DO NOT quit into a dead app — keep the
   //       working window and surface the closeable manual-restart state.
   if (!IS_MAC) {
-    const unpackedDir = resolveUnpackedRelease(process.execPath, updateRoot, process.platform)
-    const underUnpacked = unpackedDir !== null
+    // NSIS layout: the exe lives in the install root and data\ sits next to
+    // it. After a rebuild the updater replaces resources\app.asar in place,
+    // so the relaunch re-uses the existing shell exe — no need to run the
+    // sandbox preflight against a release/win-unpacked tree that the NSIS
+    // shell will never launch.
+    const isNsis = isNsisLayout(process.execPath)
+    const unpackedDir = isNsis ? process.execPath : resolveUnpackedRelease(process.execPath, updateRoot, process.platform)
+    const underUnpacked = !isNsis && unpackedDir !== null
 
     const preflight = underUnpacked
       ? sandboxPreflight(unpackedDir, p => fs.statSync(p))
-      : { ok: false, reason: 'not-under-unpacked', path: null }
+      : { ok: false, reason: isNsis ? 'nsis-shell' : 'not-under-unpacked', path: null }
 
     const sandboxFallback = sandboxFallbackFromEnv(process.env, process.argv.slice(1))
-    const sandboxOk = preflight.ok || sandboxFallback
+    const sandboxOk = isNsis || preflight.ok || sandboxFallback
 
     if (underUnpacked && !preflight.ok) {
       rememberLog(
@@ -2926,7 +2956,7 @@ async function applyUpdatesPosixInApp(opts: any) {
       )
     }
 
-    const outcome = decideRelaunchOutcome({ underUnpacked, sandboxOk })
+    const outcome = decideRelaunchOutcome({ underUnpacked, sandboxOk, isNsis })
 
     if (outcome === 'relaunch') {
       emitUpdateProgress({ stage: 'restart', message: 'Restarting Hermes…', percent: 100 })
@@ -3151,6 +3181,11 @@ function isBootstrapComplete() {
 // so the user picks where data lives before any bootstrap or backend starts.
 function needsDataPathDialog() {
   if (!IS_WINDOWS) {
+    return false
+  }
+  // NSIS packaged install: HERMES_HOME is derived from the exe location
+  // (data\ next to Hermes.exe). No dialog needed.
+  if (IS_PACKAGED) {
     return false
   }
   if (process.env.HERMES_HOME) {
