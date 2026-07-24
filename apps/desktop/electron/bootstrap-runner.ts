@@ -6,7 +6,11 @@
  * the renderer.
  *
  * Wired from electron/main.ts:
+<<<<<<< ours
  *   import { runBootstrap }from './bootstrap-runner.ts'
+=======
+ *   import { runBootstrap }from './bootstrap-runner'
+>>>>>>> theirs
  *   const result = await runBootstrap({
  *     installStamp,        // INSTALL_STAMP from main.ts (may be null in dev)
  *     activeRoot,          // ACTIVE_HERMES_ROOT
@@ -32,12 +36,17 @@
  *     no UI consumes them yet)
  */
 
+<<<<<<< ours
 import { spawn } from 'node:child_process'
+=======
+import { execFileSync, spawn } from 'node:child_process'
+>>>>>>> theirs
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import https from 'node:https'
 import path from 'node:path'
 
+<<<<<<< ours
 const IS_WINDOWS = process.platform === 'win32'
 
 function hiddenWindowsChildOptions(options = {}) {
@@ -49,6 +58,121 @@ function hiddenWindowsChildOptions(options = {}) {
 }
 
 const STAMP_COMMIT_RE = /^[0-9a-f]{7,40}$/i
+=======
+import { hiddenWindowsChildOptions } from './windows-child-options'
+
+const IS_WINDOWS = process.platform === 'win32'
+
+const STAMP_COMMIT_RE = /^[0-9a-f]{7,40}$/i
+const FALLBACK_COMMIT_RE = /^0{7,40}$/
+const FALLBACK_BRANCH = 'main'
+
+function isPinnedCommit(commit) {
+  return typeof commit === 'string' && STAMP_COMMIT_RE.test(commit) && !FALLBACK_COMMIT_RE.test(commit)
+}
+
+type ExecGitFn = (args: string[], cwd: string) => string
+type ResolveHeadFn = (activeRoot: string | null | undefined) => string | null
+
+/**
+ * Read HEAD from a managed checkout. Used after bootstrap so fallback
+ * (all-zero) install stamps still produce a marker that
+ * isBootstrapComplete() accepts (pinnedCommit length >= 7).
+ */
+function resolveCheckoutHead(activeRoot: string | null | undefined, opts: { execGit?: ExecGitFn } = {}): string | null {
+  if (!activeRoot) {
+    return null
+  }
+
+  const run: ExecGitFn =
+    opts.execGit ||
+    ((args, cwd) =>
+      execFileSync('git', args, {
+        cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 15_000,
+        ...hiddenWindowsChildOptions()
+      }).trim())
+
+  try {
+    const sha = run(['-c', 'windows.appendAtomically=false', 'rev-parse', 'HEAD'], activeRoot)
+
+    return isPinnedCommit(sha) ? sha : null
+  } catch {
+    return null
+  }
+}
+
+/** Prefer a real pin already written by install.ps1's bootstrap-marker stage. */
+function readExistingPinnedCommit(activeRoot: string | null | undefined): string | null {
+  if (!activeRoot) {
+    return null
+  }
+
+  try {
+    const raw = fs.readFileSync(path.join(activeRoot, '.hermes-bootstrap-complete'), 'utf8')
+    const parsed = JSON.parse(raw)
+
+    return parsed && isPinnedCommit(parsed.pinnedCommit) ? parsed.pinnedCommit : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Pick the commit to store on the bootstrap-complete marker.
+ * Packaged fallback stamps must NOT win (all-zero is not a real pin); after a
+ * successful install the checkout's HEAD (or install.ps1's marker) does.
+ */
+function resolveMarkerPinnedCommit(
+  installStamp: { commit?: string; branch?: string | null } | null | undefined,
+  activeRoot: string | null | undefined,
+  opts: { resolveHead?: ResolveHeadFn } = {}
+): string | null {
+  const resolveHead = opts.resolveHead || resolveCheckoutHead
+
+  if (installStamp && isPinnedCommit(installStamp.commit)) {
+    return installStamp.commit
+  }
+
+  const head = resolveHead(activeRoot)
+
+  if (head) {
+    return head
+  }
+
+  return readExistingPinnedCommit(activeRoot)
+}
+
+/**
+ * Map an install stamp to the GitHub ref used to fetch install.ps1/sh.
+ * Real CI/git stamps pin an immutable SHA. Non-git fallback stamps carry an
+ * all-zero placeholder -- treat those as an unpinned branch ref so bootstrap
+ * never asks GitHub for commit 0000000... (#50823).
+ */
+function installRefForStamp(installStamp) {
+  if (installStamp && isPinnedCommit(installStamp.commit)) {
+    return {
+      ref: installStamp.commit,
+      cacheKey: installStamp.commit,
+      pinned: true
+    }
+  }
+
+  if (installStamp && typeof installStamp.commit === 'string' && FALLBACK_COMMIT_RE.test(installStamp.commit)) {
+    const ref = installStamp.branch || FALLBACK_BRANCH
+
+    return {
+      ref,
+      cacheKey: `fallback-${String(ref).replace(/[^0-9A-Za-z._-]/g, '_')}`,
+      pinned: false
+    }
+  }
+
+  return null
+}
+>>>>>>> theirs
 
 // Stages flagged needs_user_input=true in the manifest are skipped by the
 // runner (passed -NonInteractive to install.ps1, which the install script
@@ -73,6 +197,10 @@ function resolveLocalInstallScript(sourceRepoRoot) {
   if (!sourceRepoRoot) {
     return null
   }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
   const candidate = path.join(sourceRepoRoot, 'scripts', installScriptName())
 
   try {
@@ -96,6 +224,10 @@ function installedAgentInstallScript(hermesHome) {
   if (!hermesHome) {
     return null
   }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
   const candidate = path.join(hermesHome, 'hermes-agent', 'scripts', installScriptName())
 
   try {
@@ -107,16 +239,41 @@ function installedAgentInstallScript(hermesHome) {
   }
 }
 
+<<<<<<< ours
+=======
+function hasExistingGitCheckout(activeRoot) {
+  if (!activeRoot) {
+    return false
+  }
+
+  try {
+    return fs.existsSync(path.join(activeRoot, '.git'))
+  } catch {
+    return false
+  }
+}
+
+>>>>>>> theirs
 function cachedScriptPath(hermesHome, commit) {
   return path.join(bootstrapCacheDir(hermesHome), `install-${commit}.${process.platform === 'win32' ? 'ps1' : 'sh'}`)
 }
 
+<<<<<<< ours
 function downloadInstallScript(commit, destPath) {
   // Fetch from GitHub raw at the pinned commit. The raw URL with a SHA
   // is immutable (unlike a branch ref), so we don't need integrity
   // verification beyond "did the file we wrote pass a syntax probe."
   const scriptName = installScriptName()
   const url = `https://raw.githubusercontent.com/fhghth/Magician/${commit}/scripts/${scriptName}`
+=======
+function downloadInstallScript(ref, destPath) {
+  // Fetch from GitHub raw at the install ref. Normal production builds pass a
+  // pinned SHA (immutable). Non-git fallback builds pass an unpinned branch
+  // ref so local builds can still bootstrap without pretending the all-zero
+  // placeholder is a real GitHub commit.
+  const scriptName = installScriptName()
+  const url = `https://raw.githubusercontent.com/NousResearch/hermes-agent/${ref}/scripts/${scriptName}`
+>>>>>>> theirs
 
   return new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(destPath), { recursive: true })
@@ -215,30 +372,52 @@ async function resolveInstallScript({
     return { path: localScript, source: 'local', kind: installScriptKind() }
   }
 
+<<<<<<< ours
   // 2. Packaged path: download from GitHub at the pinned commit (1B's stamp).
   if (!installStamp || !installStamp.commit || !STAMP_COMMIT_RE.test(installStamp.commit)) {
+=======
+  // 2. Packaged path: download from GitHub at the install stamp's ref.
+  // Non-git fallback builds carry an all-zero commit; treat that as an
+  // unpinned branch ref instead of trying to fetch a non-existent SHA.
+  const installRef = installRefForStamp(installStamp)
+
+  if (!installRef) {
+>>>>>>> theirs
     throw new Error(
       `Cannot resolve ${installScriptName()}: no SOURCE_REPO_ROOT and no install stamp. ` +
         'This packaged build was produced without a valid build-time stamp.'
     )
   }
 
+<<<<<<< ours
   const cached = cachedScriptPath(hermesHome, installStamp.commit)
+=======
+  const cached = cachedScriptPath(hermesHome, installRef.cacheKey)
+  const resolvedCommit = installRef.pinned ? installRef.ref : null
+>>>>>>> theirs
 
   try {
     await fsp.access(cached, fs.constants.R_OK)
     emit({
       type: 'log',
+<<<<<<< ours
       line: `[bootstrap] using cached ${installScriptName()} for ${installStamp.commit.slice(0, 12)}`
     })
 
     return { path: cached, source: 'cache', commit: installStamp.commit, kind: installScriptKind() }
+=======
+      line: `[bootstrap] using cached ${installScriptName()} for ${installRef.ref.slice(0, 12)}`
+    })
+
+    return { path: cached, source: 'cache', commit: resolvedCommit, kind: installScriptKind() }
+>>>>>>> theirs
   } catch {
     // not cached; download
   }
 
   emit({
     type: 'log',
+<<<<<<< ours
     line: `[bootstrap] fetching ${installScriptName()} for ${installStamp.commit.slice(0, 12)} from GitHub`
   })
 
@@ -247,6 +426,18 @@ async function resolveInstallScript({
     emit({ type: 'log', line: `[bootstrap] saved to ${cached}` })
 
     return { path: cached, source: 'download', commit: installStamp.commit, kind: installScriptKind() }
+=======
+    line:
+      `[bootstrap] fetching ${installScriptName()} for ${installRef.ref.slice(0, 12)} from GitHub` +
+      (installRef.pinned ? '' : ' (fallback, unpinned)')
+  })
+
+  try {
+    await _download(installRef.ref, cached)
+    emit({ type: 'log', line: `[bootstrap] saved to ${cached}` })
+
+    return { path: cached, source: 'download', commit: resolvedCommit, kind: installScriptKind() }
+>>>>>>> theirs
   } catch (err) {
     // The pinned commit may not be fetchable from GitHub -- most commonly a
     // locally-built desktop app stamped to an unpushed HEAD (see
@@ -267,6 +458,7 @@ async function resolveInstallScript({
         fs.mkdirSync(path.dirname(cached), { recursive: true })
         fs.copyFileSync(installed, cached)
 
+<<<<<<< ours
         return { path: cached, source: 'installed-agent', commit: installStamp.commit, kind: installScriptKind() }
       } catch {
         // Cache copy failed (read-only FS, etc.) -- use the source path directly.
@@ -299,6 +491,12 @@ async function resolveInstallScript({
         }
       } catch {
         // not bundled either
+=======
+        return { path: cached, source: 'installed-agent', commit: resolvedCommit, kind: installScriptKind() }
+      } catch {
+        // Cache copy failed (read-only FS, etc.) -- use the source path directly.
+        return { path: installed, source: 'installed-agent', commit: resolvedCommit, kind: installScriptKind() }
+>>>>>>> theirs
       }
     }
 
@@ -441,6 +639,10 @@ function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, herme
       if (abortSignal) {
         abortSignal.removeEventListener('abort', onAbort)
       }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
       reject(err)
     })
 
@@ -457,6 +659,10 @@ function spawnPowerShell(scriptPath, args, { emit, stageName, abortSignal, herme
       if (stderrBuf) {
         emit && emit({ type: 'log', stage: stageName, line: stderrBuf, stream: 'stderr' } as any)
       }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
       resolve({ stdout, stderr, code, signal, killed } as any)
     })
   })
@@ -533,6 +739,10 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
       if (abortSignal) {
         abortSignal.removeEventListener('abort', onAbort)
       }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
       reject(err)
     })
 
@@ -548,6 +758,10 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
       if (stderrBuf) {
         emit && emit({ type: 'log', stage: stageName, line: stderrBuf, stream: 'stderr' })
       }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
       resolve({ stdout, stderr, code, signal, killed })
     })
   })
@@ -557,6 +771,7 @@ function spawnBash(scriptPath, args, { emit, stageName, abortSignal, hermesHome 
 // Manifest + stage dispatch
 // ---------------------------------------------------------------------------
 
+<<<<<<< ours
 // Build the install.ps1 pin args (-Commit / -Branch) from the install-stamp
 // so the repository stage clones the exact SHA the .exe was tested with
 // instead of falling back to install.ps1's default ($Branch = "main").
@@ -564,6 +779,17 @@ function buildPinArgs(installStamp) {
   const args = []
 
   if (installStamp && installStamp.commit) {
+=======
+// Build the installer branch/pin args from the install stamp. The commit pin
+// is fresh-install only: once a managed checkout already exists, bootstrap is
+// a repair/update path and must not let an old packaged app detach the checkout
+// back to the commit baked into that app. All-zero fallback stamps are never
+// passed as -Commit/--commit — only the branch is used (#50823 / #50864 review).
+function buildPinArgs(installStamp, { pinCommit = true } = {}) {
+  const args = []
+
+  if (pinCommit && installStamp && isPinnedCommit(installStamp.commit)) {
+>>>>>>> theirs
     args.push('-Commit', installStamp.commit)
   }
 
@@ -574,26 +800,43 @@ function buildPinArgs(installStamp) {
   return args
 }
 
+<<<<<<< ours
 function buildPosixPinArgs({ installStamp, activeRoot, hermesHome }) {
+=======
+function buildPosixPinArgs({ installStamp, activeRoot, hermesHome, pinCommit = true }) {
+>>>>>>> theirs
   const args = ['--dir', activeRoot, '--hermes-home', hermesHome]
 
   if (installStamp && installStamp.branch) {
     args.push('--branch', installStamp.branch)
   }
 
+<<<<<<< ours
   if (installStamp && installStamp.commit) {
+=======
+  if (pinCommit && installStamp && isPinnedCommit(installStamp.commit)) {
+>>>>>>> theirs
     args.push('--commit', installStamp.commit)
   }
 
   return args
 }
 
+<<<<<<< ours
 async function fetchManifest({ scriptPath, installerKind, emit, hermesHome, activeRoot, installStamp }) {
   const isPosix = installerKind === 'posix'
 
   const args = isPosix
     ? ['--manifest', ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome })]
     : ['-Manifest', ...buildPinArgs(installStamp)]
+=======
+async function fetchManifest({ scriptPath, installerKind, emit, hermesHome, activeRoot, installStamp, pinCommit }) {
+  const isPosix = installerKind === 'posix'
+
+  const args = isPosix
+    ? ['--manifest', ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome, pinCommit })]
+    : ['-Manifest', ...buildPinArgs(installStamp, { pinCommit })]
+>>>>>>> theirs
 
   const result = await (isPosix ? spawnBash : spawnPowerShell)(scriptPath, args, {
     emit,
@@ -650,7 +893,21 @@ function parseStageResult(stdout) {
   return null
 }
 
+<<<<<<< ours
 async function runStage({ scriptPath, installerKind, stage, emit, hermesHome, activeRoot, abortSignal, installStamp }) {
+=======
+async function runStage({
+  scriptPath,
+  installerKind,
+  stage,
+  emit,
+  hermesHome,
+  activeRoot,
+  abortSignal,
+  installStamp,
+  pinCommit
+}) {
+>>>>>>> theirs
   const startedAt = Date.now()
   emit({ type: 'stage', name: stage.name, state: 'running' })
 
@@ -662,9 +919,15 @@ async function runStage({ scriptPath, installerKind, stage, emit, hermesHome, ac
         stage.name,
         '--non-interactive',
         '--json',
+<<<<<<< ours
         ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome })
       ]
     : ['-Stage', stage.name, '-NonInteractive', '-Json', ...buildPinArgs(installStamp)]
+=======
+        ...buildPosixPinArgs({ installStamp, activeRoot, hermesHome, pinCommit })
+      ]
+    : ['-Stage', stage.name, '-NonInteractive', '-Json', ...buildPinArgs(installStamp, { pinCommit })]
+>>>>>>> theirs
 
   const result = await (isPosix ? spawnBash : spawnPowerShell)(scriptPath, args, {
     emit,
@@ -802,6 +1065,21 @@ async function runBootstrap(opts) {
   })
 
   try {
+<<<<<<< ours
+=======
+    const existingCheckout = hasExistingGitCheckout(activeRoot)
+    const pinCommit = !existingCheckout
+
+    if (existingCheckout && installStamp && installStamp.commit) {
+      emit({
+        type: 'log',
+        line:
+          `[bootstrap] existing checkout detected at ${activeRoot}; ` +
+          `not pinning to packaged install stamp ${installStamp.commit.slice(0, 12)}`
+      })
+    }
+
+>>>>>>> theirs
     // 1. Resolve the platform installer.
     const scriptInfo = await resolveInstallScript({ installStamp, sourceRepoRoot, hermesHome, emit })
     const installerKind = scriptInfo.kind || 'powershell'
@@ -813,7 +1091,12 @@ async function runBootstrap(opts) {
       emit,
       hermesHome,
       activeRoot,
+<<<<<<< ours
       installStamp
+=======
+      installStamp,
+      pinCommit
+>>>>>>> theirs
     })
 
     emit({
@@ -841,7 +1124,12 @@ async function runBootstrap(opts) {
         hermesHome,
         activeRoot,
         abortSignal,
+<<<<<<< ours
         installStamp
+=======
+        installStamp,
+        pinCommit
+>>>>>>> theirs
       })
 
       if (ev.state === 'failed') {
@@ -851,9 +1139,34 @@ async function runBootstrap(opts) {
       }
     }
 
+<<<<<<< ours
     // 4. Write the bootstrap-complete marker.
     const markerPayload = {
       pinnedCommit: installStamp ? installStamp.commit : null,
+=======
+    // 4. Write the bootstrap-complete marker. Fallback (all-zero) stamps are
+    // not real pins -- resolve HEAD from the checkout we just installed so
+    // isBootstrapComplete() (pinnedCommit.length >= 7) accepts the marker
+    // instead of re-running bootstrap on every launch (#50823 review).
+    const pinnedCommit = resolveMarkerPinnedCommit(installStamp, activeRoot)
+
+    if (!pinnedCommit) {
+      emit({
+        type: 'log',
+        line:
+          '[bootstrap] WARNING: could not resolve a real pinnedCommit for the ' +
+          'bootstrap-complete marker; subsequent launches may re-run bootstrap'
+      })
+    } else if (installStamp && !isPinnedCommit(installStamp.commit)) {
+      emit({
+        type: 'log',
+        line: `[bootstrap] fallback stamp resolved marker pin to ${pinnedCommit.slice(0, 12)} from checkout`
+      })
+    }
+
+    const markerPayload = {
+      pinnedCommit,
+>>>>>>> theirs
       pinnedBranch: installStamp ? installStamp.branch : null
     }
 
@@ -875,11 +1188,27 @@ async function runBootstrap(opts) {
 }
 
 export {
+<<<<<<< ours
   cachedScriptPath,
   installedAgentInstallScript,
   // Exposed for testability
   parseStageResult,
   resolveInstallScript,
   resolveLocalInstallScript,
+=======
+  buildPinArgs,
+  buildPosixPinArgs,
+  cachedScriptPath,
+  hasExistingGitCheckout,
+  installedAgentInstallScript,
+  installRefForStamp,
+  isPinnedCommit,
+  // Exposed for testability
+  parseStageResult,
+  resolveCheckoutHead,
+  resolveInstallScript,
+  resolveLocalInstallScript,
+  resolveMarkerPinnedCommit,
+>>>>>>> theirs
   runBootstrap
 }

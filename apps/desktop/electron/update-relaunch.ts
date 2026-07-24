@@ -35,7 +35,10 @@
  * the closeable manual-restart terminal state instead.
  */
 
+<<<<<<< ours
 import fs from 'node:fs'
+=======
+>>>>>>> theirs
 import path from 'node:path'
 
 // Map process.platform → electron-builder's `release/<dir>-unpacked` name.
@@ -52,6 +55,7 @@ function unpackedDirName(platform) {
 }
 
 /**
+<<<<<<< ours
  * True when the running executable is part of an NSIS-based Windows install:
  * Hermes.exe lives in the install root and a `data\` directory sits next to it
  * housing the backend agent + config.
@@ -70,6 +74,8 @@ function isNsisLayout(execPath, { existsSync = fs.existsSync } = {}) {
 }
 
 /**
+=======
+>>>>>>> theirs
  * If `execPath` lives under `<updateRoot>/apps/desktop/release/<plat>-unpacked`,
  * return that unpacked dir; otherwise null. A null result means the running
  * binary is NOT the thing we just rebuilt (AppImage/.deb/.rpm/dev), so we must
@@ -77,6 +83,7 @@ function isNsisLayout(execPath, { existsSync = fs.existsSync } = {}) {
  *
  * Match is a path-segment-aware prefix check (not a bare string startsWith) so
  * `.../release/linux-unpacked-evil` can't masquerade as `.../release/linux-unpacked`.
+<<<<<<< ours
  *
  * NSIS layout: returns the exe directory (install root) so the relaunch decision
  * can distinguish "NSIS shell (safe to relaunch — app.asar was already replaced)"
@@ -92,6 +99,14 @@ function resolveUnpackedRelease(execPath, updateRoot, platform) {
   if (!execPath || !updateRoot) {
     return null
   }
+=======
+ */
+function resolveUnpackedRelease(execPath, updateRoot, platform) {
+  if (!execPath || !updateRoot) {
+    return null
+  }
+
+>>>>>>> theirs
   const releaseDir = path.join(updateRoot, 'apps', 'desktop', 'release')
   const unpacked = path.join(releaseDir, unpackedDirName(platform))
   const normalizedExec = path.resolve(String(execPath))
@@ -110,16 +125,21 @@ function resolveUnpackedRelease(execPath, updateRoot, platform) {
  * unpacked release AND whether its sandbox helper is launchable, choose the
  * terminal outcome.
  *
+<<<<<<< ours
  *   'relaunch' — quit + detached watcher re-execs the binary in place.
  *                Also the outcome for NSIS shell installs: the shell's
  *                app.asar was already replaced by the updater, so the old
  *                exe now loads the new frontend.
+=======
+ *   'relaunch' — quit + detached watcher re-execs the rebuilt binary in place.
+>>>>>>> theirs
  *   'guiSkew'  — backend updated, GUI package NOT changed; user must reinstall
  *                the GUI. Closeable terminal state; does NOT claim a GUI update.
  *   'manual'   — running the rebuilt binary, but its sandbox helper is not
  *                launchable and no fallback applies; do NOT quit into a dead
  *                app. Closeable manual-restart terminal state.
  */
+<<<<<<< ours
 function decideRelaunchOutcome({ underUnpacked, sandboxOk, isNsis }) {
   // NSIS shell: the updater already replaced resources\app.asar with the
   // freshly-built version.  The shell binary itself (Chromium runtime) is
@@ -128,6 +148,9 @@ function decideRelaunchOutcome({ underUnpacked, sandboxOk, isNsis }) {
     return 'relaunch'
   }
 
+=======
+function decideRelaunchOutcome({ underUnpacked, sandboxOk }) {
+>>>>>>> theirs
   if (!underUnpacked) {
     return 'guiSkew'
   }
@@ -155,6 +178,10 @@ function sandboxPreflight(unpackedDir, statSync) {
   if (!unpackedDir) {
     return { ok: false, reason: 'no-unpacked-dir', path: null }
   }
+<<<<<<< ours
+=======
+
+>>>>>>> theirs
   const sandboxPath = path.join(unpackedDir, 'chrome-sandbox')
   let st
 
@@ -341,7 +368,10 @@ export {
   collectRelaunchEnv,
   decideRelaunchOutcome,
   INTERNAL_ARG_PREFIXES,
+<<<<<<< ours
   isNsisLayout,
+=======
+>>>>>>> theirs
   PRESERVED_ENV_KEYS,
   PRESERVED_ENV_PREFIXES,
   resolveUnpackedRelease,

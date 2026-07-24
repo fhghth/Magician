@@ -31,10 +31,18 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
 use tauri::{AppHandle, Emitter};
+<<<<<<< ours
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::events::{BootstrapEvent, LogStream, StageInfo, StageState};
+=======
+use tokio::io::BufReader;
+use tokio::process::Command;
+
+use crate::events::{BootstrapEvent, LogStream, StageInfo, StageState};
+use crate::powershell::read_decoded_line;
+>>>>>>> theirs
 
 /// `hermes update` exit code meaning "another hermes process is holding the
 /// venv shim open / dirty precondition" — see _cmd_update_impl in
@@ -407,6 +415,7 @@ async fn run_update(app: AppHandle) -> Result<()> {
     }
     emit_stage(&app, "rebuild", StageState::Succeeded, Some(rebuild_ms), None);
 
+<<<<<<< ours
     // ---- stage (implicit): replace NSIS shell app.asar -------------------
     // On Windows NSIS installs the Electron shell is a static launcher:
     // Hermes.exe + Chromium runtime live in the install root, and the
@@ -416,6 +425,8 @@ async fn run_update(app: AppHandle) -> Result<()> {
     // Atomic rename (tmp → dst) guards against partial-write corruption.
     replace_nsis_shell_asar(&app, &install_root).await;
 
+=======
+>>>>>>> theirs
     let launch_target = if let Some(target_app) = target_app {
         let started = Instant::now();
         emit_stage(&app, "install", StageState::Running, None, None);
@@ -629,6 +640,7 @@ fn is_locked(path: &Path) -> bool {
     }
 }
 
+<<<<<<< ours
 /// Best-effort: copy the freshly-built `app.asar` from the unpacked release
 /// tree into the static NSIS shell's `resources\` directory.  On NSIS installs
 /// the shell binary is never replaced — only its frontend payload is swapped
@@ -720,6 +732,8 @@ async fn replace_nsis_shell_asar(app: &AppHandle, install_root: &Path) {
     }
 }
 
+=======
+>>>>>>> theirs
 /// Whether the `desktop --build-only` rebuild should be retried once. Any
 /// non-success exit qualifies: the common cause is a transient first-attempt
 /// failure (still-settling tree / self-healed Electron download) that a clean
@@ -762,28 +776,51 @@ async fn run_streamed(
 
     let stdout = child.stdout.take().expect("stdout piped");
     let stderr = child.stderr.take().expect("stderr piped");
+<<<<<<< ours
     let mut out = BufReader::new(stdout).lines();
     let mut err = BufReader::new(stderr).lines();
+=======
+    // Same non-UTF-8-safe decode path as powershell::run_script (#67193).
+    let mut out = BufReader::new(stdout);
+    let mut err = BufReader::new(stderr);
+    let mut out_buf = Vec::new();
+    let mut err_buf = Vec::new();
+>>>>>>> theirs
 
     let stage_owned = stage.map(|s| s.to_string());
     loop {
         tokio::select! {
+<<<<<<< ours
             line = out.next_line() => match line {
+=======
+            line = read_decoded_line(&mut out, &mut out_buf) => match line {
+>>>>>>> theirs
                 Ok(Some(l)) => emit_log(app, stage_owned.as_deref(), LogStream::Stdout, &l),
                 Ok(None) => break,
                 Err(e) => { tracing::warn!("stdout read error: {e}"); break; }
             },
+<<<<<<< ours
             line = err.next_line() => match line {
+=======
+            line = read_decoded_line(&mut err, &mut err_buf) => match line {
+>>>>>>> theirs
                 Ok(Some(l)) => emit_log(app, stage_owned.as_deref(), LogStream::Stderr, &l),
                 Ok(None) => {}
                 Err(e) => { tracing::warn!("stderr read error: {e}"); }
             },
         }
     }
+<<<<<<< ours
     while let Ok(Some(l)) = out.next_line().await {
         emit_log(app, stage_owned.as_deref(), LogStream::Stdout, &l);
     }
     while let Ok(Some(l)) = err.next_line().await {
+=======
+    while let Ok(Some(l)) = read_decoded_line(&mut out, &mut out_buf).await {
+        emit_log(app, stage_owned.as_deref(), LogStream::Stdout, &l);
+    }
+    while let Ok(Some(l)) = read_decoded_line(&mut err, &mut err_buf).await {
+>>>>>>> theirs
         emit_log(app, stage_owned.as_deref(), LogStream::Stderr, &l);
     }
 
@@ -833,6 +870,16 @@ fn update_child_env(install_root: &Path) -> Vec<(String, OsString)> {
         "HERMES_HOME".to_string(),
         hermes_home.as_os_str().to_os_string(),
     )];
+<<<<<<< ours
+=======
+    // `hermes update` is a Python CLI writing to a pipe here, so CPython
+    // block-buffers its stdout: nothing reaches run_streamed (and the live
+    // log UI) until 8 KB accumulate or the process exits. Long quiet steps —
+    // the pre-update backup can zip multi-GB archives for minutes — render as
+    // a frozen stage, and users cancel a healthy update. Force line-by-line
+    // output instead.
+    envs.push(("PYTHONUNBUFFERED".to_string(), OsString::from("1")));
+>>>>>>> theirs
     if let Some(path) = path_with_prepended_entries(&[
         hermes_home.join("node").join("bin"),
         venv_bin_dir(install_root),
@@ -1147,6 +1194,19 @@ mod tests {
     }
 
     #[test]
+<<<<<<< ours
+=======
+    fn update_child_env_forces_unbuffered_python() {
+        let envs = update_child_env(Path::new("/x/hermes-agent"));
+        assert!(
+            envs.iter()
+                .any(|(k, v)| k == "PYTHONUNBUFFERED" && v.to_str() == Some("1")),
+            "update children must run unbuffered so long steps stream to the live log"
+        );
+    }
+
+    #[test]
+>>>>>>> theirs
     fn lock_probe_paths_include_desktop_app_payload() {
         let root = Path::new("/x/hermes-agent");
         let probes = install_lock_probe_paths(root);
@@ -1156,7 +1216,16 @@ mod tests {
             "venv shim remains part of the update lock probe"
         );
         assert!(
+<<<<<<< ours
             probes.iter().any(|p| p.ends_with(Path::new("resources/app.asar"))),
+=======
+            // Windows/Linux payloads live under `resources/`, the macOS bundle
+            // under `Contents/Resources/` — Path::ends_with is case-sensitive.
+            probes.iter().any(|p| {
+                p.ends_with(Path::new("resources/app.asar"))
+                    || p.ends_with(Path::new("Resources/app.asar"))
+            }),
+>>>>>>> theirs
             "packaged app.asar must be probed so repair/re-clone waits for the old desktop to exit"
         );
     }

@@ -23,6 +23,7 @@ function parseRegQueryValue(stdout, name) {
   if (!stdout || !name) {
     return null
   }
+
   const typePattern = /^(\S+)\s+(?:REG_SZ|REG_EXPAND_SZ|REG_MULTI_SZ|REG_DWORD|REG_QWORD|REG_BINARY|REG_NONE)\s+(.*)$/
 
   for (const rawLine of String(stdout).split(/\r?\n/)) {
@@ -52,37 +53,6 @@ function expandWindowsEnvRefs(value, env = process.env) {
   })
 }
 
-// Write a User-scoped env var to HKCU\Environment via `reg add`. Windows-only:
-// no-ops (returns false) off-Windows. The value is written as REG_SZ; an existing
-// value of the same name is overwritten (/f). Mirrors what `setx <name> <value>`
-// does, but runs synchronously in-process so the caller can rely on the registry
-// being updated before the next getHermesHome() resolution (#45471).
-function writeWindowsUserEnvVar(
-  name,
-  value,
-  {
-    platform = process.platform,
-    exec = execFileSync
-  }: {
-    platform?: NodeJS.Platform
-    exec?: typeof execFileSync | ((file?: string, args?: any) => string)
-  } = {}
-) {
-  if (platform !== 'win32' || !name || value == null) {
-    return false
-  }
-  try {
-    exec('reg', ['add', 'HKCU\\Environment', '/v', name, '/t', 'REG_SZ', '/d', String(value), '/f'], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 5000
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
 // Read a User-scoped env var from HKCU\Environment. Windows-only: returns null
 // off-Windows (without spawning), on any spawn error, when `reg` exits non-zero
 // (the value doesn't exist), or when the value is empty.
@@ -101,6 +71,7 @@ function readWindowsUserEnvVar(
   if (platform !== 'win32' || !name) {
     return null
   }
+
   let stdout
 
   try {
@@ -119,9 +90,10 @@ function readWindowsUserEnvVar(
   if (raw == null) {
     return null
   }
+
   const expanded = expandWindowsEnvRefs(raw, env).trim()
 
   return expanded || null
 }
 
-export { expandWindowsEnvRefs, parseRegQueryValue, readWindowsUserEnvVar, writeWindowsUserEnvVar }
+export { expandWindowsEnvRefs, parseRegQueryValue, readWindowsUserEnvVar }
