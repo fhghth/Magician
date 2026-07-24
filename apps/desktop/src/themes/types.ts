@@ -43,6 +43,8 @@ export interface DesktopThemeColors {
   destructiveForeground: string
   sidebarBackground?: string
   sidebarBorder?: string
+  statusbarBackground?: string
+  statusbarBorder?: string
   userBubble?: string
   userBubbleBorder?: string
 }

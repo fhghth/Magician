@@ -22,12 +22,10 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-<<<<<<< ours
-import test from 'node:test'
-=======
+
 
 import { test } from 'vitest'
->>>>>>> theirs
+
 
 import {
   buildRelaunchScript,
@@ -83,7 +81,7 @@ test('resolveUnpackedRelease is not fooled by a sibling prefix dir', () => {
 })
 
 test('decideRelaunchOutcome: only under-unpacked + sandbox-ok relaunches', () => {
-<<<<<<< ours
+
   assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: true, isNsis: false }), 'relaunch')
   // Under unpacked but sandbox not launchable → manual (keep a working window).
   assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: false, isNsis: false }), 'manual')
@@ -96,14 +94,7 @@ test('decideRelaunchOutcome: NSIS layout always returns relaunch', () => {
   // NSIS shell: app.asar was already replaced by the updater — safe to restart.
   assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: false, isNsis: true }), 'relaunch')
   assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: true, isNsis: true }), 'relaunch')
-=======
-  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: true }), 'relaunch')
-  // Under unpacked but sandbox not launchable → manual (keep a working window).
-  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: false }), 'manual')
-  // Not under unpacked → guiSkew regardless of sandbox flag.
-  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: true }), 'guiSkew')
-  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: false }), 'guiSkew')
->>>>>>> theirs
+
 })
 
 // ---------------------------------------------------------------------------
@@ -182,10 +173,9 @@ test('collectRelaunchEnv preserves HERMES_HOME + HERMES_DESKTOP_* + sandbox opt-
     HERMES_DESKTOP_REMOTE_URL: 'http://box:9119',
     HERMES_DESKTOP_REMOTE_TOKEN: 'secret',
     HERMES_DESKTOP_HERMES_ROOT: '/home/u/dev/hermes',
-<<<<<<< ours
-=======
+
     HERMES_DESKTOP_APP_NAME: 'HermesSandbox',
->>>>>>> theirs
+
     ELECTRON_DISABLE_SANDBOX: '1', // sandbox opt-out — preserved
     PATH: '/usr/bin', // not preserved
     HOME: '/home/u', // not preserved
@@ -197,10 +187,9 @@ test('collectRelaunchEnv preserves HERMES_HOME + HERMES_DESKTOP_* + sandbox opt-
     HERMES_DESKTOP_REMOTE_URL: 'http://box:9119',
     HERMES_DESKTOP_REMOTE_TOKEN: 'secret',
     HERMES_DESKTOP_HERMES_ROOT: '/home/u/dev/hermes',
-<<<<<<< ours
-=======
+
     HERMES_DESKTOP_APP_NAME: 'HermesSandbox',
->>>>>>> theirs
+
     ELECTRON_DISABLE_SANDBOX: '1'
   })
   assert.deepEqual(collectRelaunchEnv(null), {})

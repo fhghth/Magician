@@ -60,6 +60,7 @@ export const nousTheme: DesktopTheme = {
     destructiveForeground: '#FFFFFF',
     sidebarBackground: '#F3F7FF',
     sidebarBorder: nousTintTransparent(18),
+    statusbarBackground: '#E3EAF5',
     userBubble: nousTint(6),
     userBubbleBorder: nousTintTransparent(24)
   },
@@ -87,6 +88,7 @@ export const nousTheme: DesktopTheme = {
     destructiveForeground: '#FEF2F2',
     sidebarBackground: '#09286F',
     sidebarBorder: '#234A9C',
+    statusbarBackground: '#051845',
     userBubble: '#143B91',
     userBubbleBorder: '#3A63BD'
   },
@@ -125,6 +127,7 @@ export const midnightTheme: DesktopTheme = {
     destructiveForeground: '#fef2f2',
     sidebarBackground: '#06061a',
     sidebarBorder: '#12123a',
+    statusbarBackground: '#020210',
     userBubble: '#14143a',
     userBubbleBorder: '#242466'
   },
@@ -162,6 +165,7 @@ export const emberTheme: DesktopTheme = {
     destructiveForeground: '#fef2f2',
     sidebarBackground: '#100600',
     sidebarBorder: '#2a1004',
+    statusbarBackground: '#060200',
     userBubble: '#2a1000',
     userBubbleBorder: '#4a2010'
   },
@@ -199,6 +203,7 @@ export const monoTheme: DesktopTheme = {
     destructiveForeground: '#fef2f2',
     sidebarBackground: '#0a0a0a',
     sidebarBorder: '#202020',
+    statusbarBackground: '#040404',
     userBubble: '#1a1a1a',
     userBubbleBorder: '#363636'
   }
@@ -232,6 +237,7 @@ export const cyberpunkTheme: DesktopTheme = {
     destructiveForeground: '#000a00',
     sidebarBackground: '#000600',
     sidebarBorder: '#001800',
+    statusbarBackground: '#000200',
     userBubble: '#001400',
     userBubbleBorder: '#004800'
   },
@@ -269,6 +275,7 @@ export const slateTheme: DesktopTheme = {
     destructiveForeground: '#fef2f2',
     sidebarBackground: '#090d13',
     sidebarBorder: '#1c2228',
+    statusbarBackground: '#03060a',
     userBubble: '#1e2a38',
     userBubbleBorder: '#2e4060'
   },

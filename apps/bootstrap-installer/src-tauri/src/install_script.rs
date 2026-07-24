@@ -70,8 +70,7 @@ fn is_valid_commit(s: &str) -> bool {
     (7..=40).contains(&len) && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-<<<<<<< ours
-=======
+
 /// Resolver cache plan for a pin that already has a local path computed.
 ///
 /// Immutable commit pins reuse cache forever. Mutable branch/tag pins always
@@ -95,7 +94,7 @@ pub(crate) fn cache_plan(immutable: bool, cached_exists: bool) -> CachePlan {
     }
 }
 
->>>>>>> theirs
+
 /// Resolves the install script to use for this run.
 ///
 /// `pin` is the commit-or-branch from either Hermes-Setup's build-time
@@ -126,11 +125,7 @@ pub async fn resolve(
     // 2. (Not implemented) bundled fallback.
 
     // 3. Network. Pin must be a real commit or a branch ref.
-<<<<<<< ours
-    let commit_or_ref = match (&pin.commit, &pin.branch) {
-        (Some(c), _) if is_valid_commit(c) => c.clone(),
-        (_, Some(b)) if !b.trim().is_empty() => b.clone(),
-=======
+
     //
     // Commit SHAs are immutable — permanent cache reuse is safe.
     // Branch/tag pins are moving refs: always try to refresh so "Retry install"
@@ -138,7 +133,7 @@ pub async fn resolve(
     let (commit_or_ref, immutable) = match (&pin.commit, &pin.branch) {
         (Some(c), _) if is_valid_commit(c) => (c.clone(), true),
         (_, Some(b)) if !b.trim().is_empty() => (b.clone(), false),
->>>>>>> theirs
+
         (Some(other), _) => {
             return Err(anyhow!(
                 "install script pin commit `{other}` is not a valid git SHA"
@@ -152,38 +147,7 @@ pub async fn resolve(
     };
 
     let cached = cached_path(kind, &commit_or_ref);
-<<<<<<< ours
-    if cached.exists() {
-        emit_log(&format!(
-            "[bootstrap] using cached {} for {}",
-            kind.filename(),
-            truncate_ref(&commit_or_ref)
-        ));
-        return Ok(ResolvedScript {
-            path: cached,
-            source: ScriptSource::Cached,
-            commit: pin.commit.clone(),
-            branch: pin.branch.clone(),
-        });
-    }
 
-    emit_log(&format!(
-        "[bootstrap] downloading {} for {} from GitHub",
-        kind.filename(),
-        truncate_ref(&commit_or_ref)
-    ));
-
-    download(kind, &commit_or_ref, &cached).await?;
-
-    emit_log(&format!("[bootstrap] cached to {}", cached.display()));
-
-    Ok(ResolvedScript {
-        path: cached,
-        source: ScriptSource::Downloaded,
-        commit: pin.commit.clone(),
-        branch: pin.branch.clone(),
-    })
-=======
     match cache_plan(immutable, cached.exists()) {
         CachePlan::Reuse => {
             emit_log(&format!(
@@ -244,7 +208,7 @@ pub async fn resolve(
             }
         }
     }
->>>>>>> theirs
+
 }
 
 #[derive(Debug, Clone, Default)]
@@ -284,97 +248,13 @@ fn truncate_ref(s: &str) -> &str {
     }
 }
 
-<<<<<<< ours
+
 /// Downloads to `dest_path` via reqwest with rustls. Atomically renames
 /// `dest_path.tmp` → `dest_path` so partial writes don't poison the cache.
 async fn download(kind: ScriptKind, commit_or_ref: &str, dest_path: &Path) -> Result<()> {
     let url = format!(
         "https://raw.githubusercontent.com/fhghth/Magician/{}/scripts/{}",
-=======
-/// UTF-8 BOM. Windows PowerShell 5.1 reads a BOM-less `.ps1` using the system
-/// ANSI code page; a leading BOM is what tells it the file is UTF-8. The
-/// `irm | iex` / `[scriptblock]::Create` path strips BOMs on purpose, but the
-/// GUI bootstrap runs the *cached file* via `-File`, so we write the opposite
-/// (#67193).
-const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
-/// Prepare bytes for the on-disk bootstrap cache.
-///
-/// `.ps1` files get a UTF-8 BOM (unless one is already present). `.sh` files
-/// are left unchanged — a BOM would break `#!/bin/bash`.
-pub(crate) fn prepare_cached_script_bytes(kind: ScriptKind, bytes: &[u8]) -> Vec<u8> {
-    match kind {
-        ScriptKind::Ps1 => {
-            if bytes.starts_with(UTF8_BOM) {
-                bytes.to_vec()
-            } else {
-                let mut out = Vec::with_capacity(UTF8_BOM.len() + bytes.len());
-                out.extend_from_slice(UTF8_BOM);
-                out.extend_from_slice(bytes);
-                out
-            }
-        }
-        ScriptKind::Sh => bytes.to_vec(),
-    }
-}
-
-/// Upgrade a cached script written by a pre-BOM-fix installer in place.
-///
-/// `prepare_cached_script_bytes` only runs inside `download()`, but immutable
-/// commit pins (and the stale-fallback path) reuse the on-disk file without
-/// re-downloading — so a BOM-less `.ps1` cached before the #67193 fix would
-/// keep reproducing the ANSI-codepage parse failure on every retry. Rewrites
-/// through the same atomic tmp+rename shape as `download()`. Best-effort: a
-/// failed upgrade logs a warning and keeps the original file (which is no
-/// worse than the pre-existing behavior).
-fn upgrade_cached_script(kind: ScriptKind, cached: &Path, emit_log: &impl Fn(&str)) {
-    if !matches!(kind, ScriptKind::Ps1) {
-        return;
-    }
-    let bytes = match std::fs::read(cached) {
-        Ok(b) => b,
-        Err(err) => {
-            emit_log(&format!(
-                "[bootstrap] WARNING: could not read cached script {} for BOM check: {err}",
-                cached.display()
-            ));
-            return;
-        }
-    };
-    if bytes.starts_with(UTF8_BOM) {
-        return;
-    }
-    let upgraded = prepare_cached_script_bytes(kind, &bytes);
-    let tmp = cached.with_extension("ps1.tmp");
-    let result = std::fs::write(&tmp, &upgraded).and_then(|()| std::fs::rename(&tmp, cached));
-    match result {
-        Ok(()) => emit_log(&format!(
-            "[bootstrap] upgraded cached {} with UTF-8 BOM (#67193)",
-            cached.display()
-        )),
-        Err(err) => {
-            let _ = std::fs::remove_file(&tmp);
-            emit_log(&format!(
-                "[bootstrap] WARNING: could not upgrade cached {} with UTF-8 BOM: {err}",
-                cached.display()
-            ));
-        }
-    }
-}
-
-/// Downloads to `dest_path` via reqwest with rustls. Atomically renames
-/// `dest_path.tmp` → `dest_path` so partial writes don't poison the cache.
-///
-/// The client carries explicit timeouts: mutable branch pins call this on
-/// EVERY run (#67193 cache-refresh fix), and the stale-cache fallback in
-/// `resolve()` only fires when this returns `Err`. Without a timeout, a
-/// black-holed connection (captive portal, hung proxy, silently dropped
-/// packets) never errors — the whole bootstrap would hang here instead of
-/// falling back to the cached script.
-async fn download(kind: ScriptKind, commit_or_ref: &str, dest_path: &Path) -> Result<()> {
-    let url = format!(
-        "https://raw.githubusercontent.com/NousResearch/hermes-agent/{}/scripts/{}",
->>>>>>> theirs
         commit_or_ref,
         kind.filename()
     );
@@ -393,15 +273,13 @@ async fn download(kind: ScriptKind, commit_or_ref: &str, dest_path: &Path) -> Re
         format!("{ext}.tmp")
     });
 
-<<<<<<< ours
-    let response = reqwest::Client::new()
-=======
+
     let response = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(60))
         .build()
         .context("building download client")?
->>>>>>> theirs
+
         .get(&url)
         .header("User-Agent", "hermes-setup/0.0.1")
         .send()
@@ -421,10 +299,9 @@ async fn download(kind: ScriptKind, commit_or_ref: &str, dest_path: &Path) -> Re
         .bytes()
         .await
         .with_context(|| format!("reading body of {url}"))?;
-<<<<<<< ours
-=======
+
     let bytes = prepare_cached_script_bytes(kind, &bytes);
->>>>>>> theirs
+
 
     let mut file = tokio::fs::File::create(&tmp_path)
         .await
@@ -467,8 +344,7 @@ mod tests {
         assert_eq!(sanitize_ref("main"), "main");
         assert_eq!(sanitize_ref("release/1.2.3"), "release_1.2.3");
     }
-<<<<<<< ours
-=======
+
 
     #[test]
     fn prepare_cached_ps1_prefixes_utf8_bom() {
@@ -558,5 +434,5 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
->>>>>>> theirs
+
 }

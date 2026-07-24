@@ -136,13 +136,10 @@ foreach ($tmpVar in @('TEMP', 'TMP')) {
 # Configuration
 # ============================================================================
 
-<<<<<<< ours
+
 $RepoUrlSsh = "git@github.com:fhghth/Magician.git"
 $RepoUrlHttps = "https://github.com/fhghth/Magician.git"
-=======
-$RepoUrlSsh = "git@github.com:NousResearch/hermes-agent.git"
-$RepoUrlHttps = "https://github.com/NousResearch/hermes-agent.git"
->>>>>>> theirs
+
 $PythonVersion = "3.11"
 # Minor versions the installer accepts when the requested $PythonVersion isn't
 # available, in preference order.  uv discovers both uv-managed and system
@@ -448,11 +445,9 @@ function Get-PowerShellHostExe {
 }
 
 function Install-Uv {
-<<<<<<< ours
-    # Hermes owns its own uv at $HermesHome\bin\uv.exe.  Always install there —
-=======
+
     # Hermes owns its own uv at $HermesHome\bin\uv.exe.  Always install there --
->>>>>>> theirs
+
     # no PATH probing, no conda guards, no multi-location resolution chains.
     # The runtime update path (hermes_cli/managed_uv.py) looks in the same
     # place, so install.ps1 and `hermes update` stay in sync.
@@ -537,11 +532,9 @@ function Ensure-NodeExeOnPath {
 # prior process is not visible here.  Later stages (Test-Python,
 # Install-Venv, Install-Dependencies, Install-PlatformSdks) call this
 # at the top to populate $script:UvCmd from the managed location.
-<<<<<<< ours
-# Throws if uv is not findable — the caller's stage then surfaces a
-=======
+
 # Throws if uv is not findable -- the caller's stage then surfaces a
->>>>>>> theirs
+
 # clean error via the stage-driver's try/catch.
 function Resolve-UvCmd {
     # Already resolved (default invocation path: Install-Uv ran earlier
@@ -557,11 +550,9 @@ function Resolve-UvCmd {
         # Stale; fall through to re-discover.
     }
 
-<<<<<<< ours
-    # Check the managed location first — this is where Install-Uv puts it.
-=======
+
     # Check the managed location first -- this is where Install-Uv puts it.
->>>>>>> theirs
+
     $managedUv = Join-Path $HermesHome "bin\uv.exe"
     if (Test-Path $managedUv) {
         $script:UvCmd = $managedUv
@@ -722,8 +713,7 @@ function Test-Python {
     return $false
 }
 
-<<<<<<< ours
-=======
+
 $script:GitInstallFailureReason = $null
 $script:GitBashPath = $null
 $script:GitBashProbeOutput = $null
@@ -818,7 +808,7 @@ function New-GitBashAslrFailureReason {
     ) -join [Environment]::NewLine
 }
 
->>>>>>> theirs
+
 function Install-Git {
     <#
     .SYNOPSIS
@@ -851,19 +841,16 @@ function Install-Git {
     ``HERMES_GIT_BASH_PATH`` (User scope) so Hermes can find it in a fresh
     shell without a second PATH refresh.
     #>
-<<<<<<< ours
-=======
+
     $script:GitInstallFailureReason = $null
->>>>>>> theirs
+
     Write-Info "Checking Git..."
 
     if (Get-Command git -ErrorAction SilentlyContinue) {
         $version = git --version
         Write-Success "Git found ($version)"
         Set-GitBashEnvVar
-<<<<<<< ours
-        return $true
-=======
+
         if ($script:GitBashPath -and (Test-GitBashCompatibility -BashPath $script:GitBashPath)) {
             Write-Success "Git Bash can launch MSYS programs"
             return $true
@@ -882,7 +869,7 @@ function Install-Git {
             Write-Warn "Git is on PATH, but its Git Bash installation could not be located."
         }
         Write-Info "Trying a Hermes-managed PortableGit install instead..."
->>>>>>> theirs
+
     }
 
     # Download PortableGit into $HermesHome\git.  Always works as long as
@@ -993,10 +980,7 @@ function Install-Git {
         $version = & $gitExe --version
         Write-Success "Git $version installed to $gitDir (portable, user-scoped)"
         Set-GitBashEnvVar
-<<<<<<< ours
-        return $true
-    } catch {
-=======
+
         if (-not $script:GitBashPath) {
             throw "PortableGit extraction did not produce a usable bash.exe"
         }
@@ -1016,7 +1000,7 @@ function Install-Git {
             Write-Err $script:GitInstallFailureReason
             return $false
         }
->>>>>>> theirs
+
         Write-Err "Could not install portable Git: $_"
         Write-Info ""
         Write-Info "Fallback: install Git manually from https://git-scm.com/download/win"
@@ -1033,10 +1017,9 @@ function Set-GitBashEnvVar {
     ``HERMES_GIT_BASH_PATH`` (User env scope) so Hermes can find it even before
     PATH propagation completes in a newly-spawned shell.
     #>
-<<<<<<< ours
-=======
+
     $script:GitBashPath = $null
->>>>>>> theirs
+
     $candidates = @()
 
     # Our own portable Git install is ALWAYS checked first, so a broken
@@ -1073,10 +1056,9 @@ function Set-GitBashEnvVar {
         if ($candidate -and (Test-Path $candidate)) {
             [Environment]::SetEnvironmentVariable("HERMES_GIT_BASH_PATH", $candidate, "User")
             $env:HERMES_GIT_BASH_PATH = $candidate
-<<<<<<< ours
-=======
+
             $script:GitBashPath = $candidate
->>>>>>> theirs
+
             Write-Info "Set HERMES_GIT_BASH_PATH=$candidate"
             return
         }
@@ -1554,11 +1536,9 @@ function Install-Repository {
                     if ($LASTEXITCODE -ne 0) { throw "git checkout $Branch failed (exit $LASTEXITCODE)" }
                     # Managed installs should follow origin/$Branch exactly. If
                     # the checkout has diverged (or has local-only commits),
-<<<<<<< ours
-                    # ff-only pull cannot succeed — mirror ``hermes update`` and
-=======
+
                     # ff-only pull cannot succeed -- mirror ``hermes update`` and
->>>>>>> theirs
+
                     # reset to the fetched remote so bootstrap/install can recover.
                     git -c windows.appendAtomically=false pull --ff-only origin $Branch
                     if ($LASTEXITCODE -ne 0) {
@@ -1595,26 +1575,19 @@ function Install-Repository {
 
                     if ($restoreNow) {
                         Write-Info "Restoring local changes..."
-<<<<<<< ours
-                        git -c windows.appendAtomically=false stash apply $autostashRef
-                        if ($LASTEXITCODE -eq 0) {
-=======
+
                         $restoreOutput = @(git -c windows.appendAtomically=false stash apply $autostashRef 2>&1)
                         $restoreExit = $LASTEXITCODE
                         $conflictedFiles = @(
                             git -c windows.appendAtomically=false diff --name-only --diff-filter=U 2>$null
                         ) | Where-Object { $_ -and $_.ToString().Trim() }
                         if (($restoreExit -eq 0) -and ($conflictedFiles.Count -eq 0)) {
->>>>>>> theirs
+
                             git -c windows.appendAtomically=false stash drop $autostashRef 2>$null
                             Write-Warn "Local changes were restored on top of the updated codebase."
                             Write-Warn "Review git diff / git status if Hermes behaves unexpectedly."
                         } else {
-<<<<<<< ours
-                            Write-Err "Update succeeded, but restoring local changes failed. Your changes are still preserved in git stash."
-                            Write-Info "Resolve manually with: git stash apply $autostashRef"
-                            throw "git stash apply failed after update"
-=======
+
                             Write-Err "Update pulled new code, but restoring local changes hit conflicts."
                             foreach ($line in $restoreOutput) {
                                 if ($line -and $line.ToString().Trim()) {
@@ -1634,7 +1607,7 @@ function Install-Repository {
                             git -c windows.appendAtomically=false reset --hard HEAD 2>$null | Out-Null
                             Write-Info "Working tree reset to clean state."
                             Write-Info "Restore your changes later with: git stash apply $autostashRef"
->>>>>>> theirs
+
                         }
                     } else {
                         Write-Info "Skipped restoring local changes."
@@ -1689,34 +1662,7 @@ function Install-Repository {
         $env:GIT_CONFIG_VALUE_0 = "false"
         git config --global windows.appendAtomically false 2>$null
 
-<<<<<<< ours
-        # If HERMES_LOCAL_REPO is set, copy from the local filesystem instead
-        # of cloning from GitHub.  Used by the desktop app's first-launch
-        # bootstrap when GitHub is unreachable and the source code is bundled
-        # or available at a known path (e.g. the build machine's checkout).
-        $LocalRepo = $env:HERMES_LOCAL_REPO
-        if ($LocalRepo -and (Test-Path $LocalRepo)) {
-            Write-Info "Using local repository at $LocalRepo (HERMES_LOCAL_REPO)"
-            try {
-                robocopy $LocalRepo $InstallDir /E /XD node_modules .git /NJH /NJS /NP /NS /NC
-                if ($LASTEXITCODE -le 7) { $cloneSuccess = $true }
-            } catch { }
-            if ($cloneSuccess) {
-                Write-Info "Local copy complete."
-            }
-        }
 
-        # Try SSH first, then HTTPS, with -c flag for atomic write fix
-        if (-not $cloneSuccess) {
-            Write-Info "Trying SSH clone..."
-            $env:GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5"
-            try {
-                Invoke-NativeWithRelaxedErrorAction { git -c windows.appendAtomically=false clone --depth 1 --branch $Branch $RepoUrlSsh $InstallDir }
-                if ($LASTEXITCODE -eq 0) { $cloneSuccess = $true }
-            } catch { }
-            $env:GIT_SSH_COMMAND = $null
-        }
-=======
         # Try SSH first, then HTTPS, with -c flag for atomic write fix
         Write-Info "Trying SSH clone..."
         $env:GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5"
@@ -1725,7 +1671,7 @@ function Install-Repository {
             if ($LASTEXITCODE -eq 0) { $cloneSuccess = $true }
         } catch { }
         $env:GIT_SSH_COMMAND = $null
->>>>>>> theirs
+
 
         if (-not $cloneSuccess) {
             if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue }
@@ -1745,7 +1691,7 @@ function Install-Repository {
                 # for.  GitHub supports archive URLs for commits, tags, and
                 # branches; we honour Commit > Tag > Branch.
                 if ($Commit) {
-<<<<<<< ours
+
                     $zipUrl = "https://github.com/fhghth/Magician/archive/$Commit.zip"
                     $zipLabel = $Commit
                 } elseif ($Tag) {
@@ -1753,15 +1699,7 @@ function Install-Repository {
                     $zipLabel = $Tag
                 } else {
                     $zipUrl = "https://github.com/fhghth/Magician/archive/refs/heads/$Branch.zip"
-=======
-                    $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/$Commit.zip"
-                    $zipLabel = $Commit
-                } elseif ($Tag) {
-                    $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/refs/tags/$Tag.zip"
-                    $zipLabel = $Tag
-                } else {
-                    $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/refs/heads/$Branch.zip"
->>>>>>> theirs
+
                     $zipLabel = $Branch
                 }
                 $zipPath = "$env:TEMP\hermes-agent-$zipLabel.zip"
@@ -1778,13 +1716,7 @@ function Install-Repository {
                     Move-Item $extractedDir.FullName $InstallDir -Force
                     Write-Success "Downloaded and extracted"
 
-<<<<<<< ours
-                    # Initialize git repo so updates work later
-                    Push-Location $InstallDir
-                    git -c windows.appendAtomically=false init 2>$null
-                    git -c windows.appendAtomically=false config windows.appendAtomically false 2>$null
-                    git remote add origin $RepoUrlHttps 2>$null
-=======
+
                     # Initialize git repo so updates work later. A bare
                     # `git init` leaves NO HEAD -- desktop's write-build-stamp
                     # then hard-fails with "could not determine git commit"
@@ -1833,7 +1765,7 @@ function Install-Repository {
                     } finally {
                         $ErrorActionPreference = $prevZipEAP
                     }
->>>>>>> theirs
+
                     Pop-Location
                     Write-Success "Git repo initialized for future updates"
 
@@ -1941,13 +1873,10 @@ function Install-Venv {
             # /End stops a running task instance; /Change /DISABLE stops it
             # from re-firing mid-install. (The Startup-folder .vbs fallback is
             # NOT touched: it only fires at logon, so it cannot respawn a
-<<<<<<< ours
-            # gateway mid-install.) Re-enabled in the finally below — including
-            # on failure — but only for tasks that were enabled to begin with.
-=======
+
             # gateway mid-install.) Re-enabled in the finally below -- including
             # on failure -- but only for tasks that were enabled to begin with.
->>>>>>> theirs
+
             # Best-effort: a missing task just errors quietly.
             try {
                 schtasks /Query /FO CSV 2>$null | ConvertFrom-Csv | Where-Object { $_.TaskName -like '*Hermes_Gateway*' } | ForEach-Object {
@@ -2041,11 +1970,9 @@ function Install-Venv {
     }
 
     # Clean up parked venvs from previous installs whose handles have since
-<<<<<<< ours
-    # been released. Best-effort — a still-held tree just stays for next time.
-=======
+
     # been released. Best-effort -- a still-held tree just stays for next time.
->>>>>>> theirs
+
     Get-ChildItem -Directory -Filter "venv.stale.*" -ErrorAction SilentlyContinue | ForEach-Object {
         Remove-Item -Recurse -Force $_.FullName -ErrorAction SilentlyContinue
     }
@@ -2078,17 +2005,12 @@ function Install-Venv {
     } finally {
         Pop-Location
         # Re-arm the gateway autostart tasks disabled during the venv teardown
-<<<<<<< ours
-        # — in a finally so a failed teardown/creation can never strand the
-        # user's gateway autostart in the disabled state. Same function scope,
-        # so the list survives even under the stage-per-process bootstrap.
-        # Deliberately NOT started here — dependencies aren't installed yet;
-=======
+
         # -- in a finally so a failed teardown/creation can never strand the
         # user's gateway autostart in the disabled state. Same function scope,
         # so the list survives even under the stage-per-process bootstrap.
         # Deliberately NOT started here -- dependencies aren't installed yet;
->>>>>>> theirs
+
         # the task fires normally on next logon and `hermes update` / the
         # gateway resume path handles the immediate restart.
         if ($gatewayTasksDisabled -and $gatewayTasksDisabled.Count -gt 0) {
@@ -2406,11 +2328,9 @@ function Set-PathVariable {
 function Write-BootstrapMarker {
     # Writes $InstallDir\.hermes-bootstrap-complete which tells the Hermes
     # desktop app (apps/desktop/electron/main.ts) "install.ps1 ran
-<<<<<<< ours
-    # successfully — DON'T trigger the legacy first-launch bootstrap
-=======
+
     # successfully -- DON'T trigger the legacy first-launch bootstrap
->>>>>>> theirs
+
     # runner."
     #
     # Schema mirrors what main.ts's writeBootstrapMarker() / isBootstrap
@@ -2431,11 +2351,9 @@ function Write-BootstrapMarker {
     # Resolve the pinned commit: explicit -Commit wins, otherwise read
     # the checkout's HEAD via git. If git can't run, leave commit empty
     # and the marker will fail desktop validation (pinnedCommit.length
-<<<<<<< ours
-    # >= 7) — better to be invalid than wrong.
-=======
+
     # >= 7) -- better to be invalid than wrong.
->>>>>>> theirs
+
     $pinnedCommit = $Commit
     if (-not $pinnedCommit) {
         # PS 5.1 doesn't support the ?. null-conditional operator, so
@@ -2450,11 +2368,9 @@ function Write-BootstrapMarker {
                     $pinnedCommit = $resolved.Trim()
                 }
             } catch {
-<<<<<<< ours
-                # Ignore — pinnedCommit stays empty, marker stays invalid,
-=======
+
                 # Ignore -- pinnedCommit stays empty, marker stays invalid,
->>>>>>> theirs
+
                 # desktop falls through to its legacy bootstrap path.
             } finally {
                 Pop-Location
@@ -2473,11 +2389,9 @@ function Write-BootstrapMarker {
         pinnedCommit  = $pinnedCommit
         pinnedBranch  = $pinnedBranch
         completedAt   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-<<<<<<< ours
-        # desktopVersion field intentionally omitted — only the desktop
-=======
+
         # desktopVersion field intentionally omitted -- only the desktop
->>>>>>> theirs
+
         # app knows its own version, and the marker validator doesn't
         # require it. The desktop fills it in if/when it writes its
         # own marker (e.g. after a future in-app upgrade).
@@ -2486,11 +2400,9 @@ function Write-BootstrapMarker {
 
     # Write WITHOUT a UTF-8 BOM. PowerShell 5.1's `Set-Content -Encoding UTF8`
     # always emits a BOM, and Node's plain JSON.parse rejects the BOM as an
-<<<<<<< ours
-    # unexpected character — so a BOM'd marker would silently fail the
-=======
+
     # unexpected character -- so a BOM'd marker would silently fail the
->>>>>>> theirs
+
     # desktop's readJson(), make isBootstrapComplete() return null, and the
     # desktop would re-run the legacy bootstrap runner anyway. Defeats the
     # whole point. Use the .NET API directly for BOM-less UTF-8.
@@ -2590,11 +2502,9 @@ function Install-NodeDeps {
         # Cross-process driver mode (Hermes-Setup.exe runs each -Stage NAME
         # in a fresh powershell.exe) means $script:HasNode set by Stage-Node
         # in the previous process isn't visible here. Re-probe rather than
-<<<<<<< ours
-        # trust the stale global — Stage-Node already ran successfully or
-=======
+
         # trust the stale global -- Stage-Node already ran successfully or
->>>>>>> theirs
+
         # the bootstrap would've aborted, so npm is reachable.
         if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
             Write-Info "Skipping Node.js dependencies (Node not installed)"
@@ -2871,11 +2781,9 @@ function Clear-ElectronBuildCache {
 # Last-resort Electron mirror after GitHub download fails (#47266).
 $script:DesktopElectronFallbackMirror = "https://npmmirror.com/mirrors/electron/"
 
-<<<<<<< ours
-# Electron package dir — workspace-local nest first, then root hoist.
-=======
+
 # Electron package dir -- workspace-local nest first, then root hoist.
->>>>>>> theirs
+
 function Get-ElectronDir {
     param([string]$InstallDir)
     $desktopLocal = Join-Path $InstallDir 'apps\desktop\node_modules\electron'
@@ -2956,11 +2864,9 @@ function Install-Desktop {
     #
     # The Tauri bootstrap installer's launch_hermes_desktop command
     # resolves apps/desktop/release/win-unpacked/Hermes.exe directly,
-<<<<<<< ours
-    # so an "unpacked" build (electron-builder --dir) is enough — we
-=======
+
     # so an "unpacked" build (electron-builder --dir) is enough -- we
->>>>>>> theirs
+
     # don't need to produce an NSIS/MSI artifact here.
 
     # Always re-resolve Node here. Stages run in separate PowerShell processes,
@@ -3014,11 +2920,9 @@ function Install-Desktop {
         #
         # The streaming sink in bootstrap.rs's run_install_script
         # captures every stdout/stderr line as it's emitted, so we don't
-<<<<<<< ours
-        # need a side TEMP log file — the installer's bootstrap log
-=======
+
         # need a side TEMP log file -- the installer's bootstrap log
->>>>>>> theirs
+
         # IS the artifact a support engineer reads.
         #
         # Prefer `npm ci`: it wipes node_modules and reinstalls from the
@@ -3073,11 +2977,9 @@ function Install-Desktop {
     # NOT signing the output. Combined with signAndEditExecutable=false in
     # apps/desktop/package.json's build.win block, electron-builder never
     # invokes signtool and therefore never fetches/extracts winCodeSign
-<<<<<<< ours
-    # (whose macOS symlinks crash 7-Zip on non-admin Windows — a dead end we
-=======
+
     # (whose macOS symlinks crash 7-Zip on non-admin Windows -- a dead end we
->>>>>>> theirs
+
     # are NOT trying to work around). The Hermes icon + product name are
     # stamped onto Hermes.exe by our own rcedit step (Set-DesktopExeIdentity)
     # AFTER this build, completely decoupled from electron-builder signing.
@@ -3087,8 +2989,7 @@ function Install-Desktop {
     # for some other tool, electron-builder would still try to sign.
     Write-Info "Building desktop app (this takes 1-3 minutes)..."
     $buildLog = "$env:TEMP\hermes-desktop-build-$(Get-Random).log"
-<<<<<<< ours
-=======
+
     # Seed GITHUB_SHA for write-build-stamp.mjs. The stamp prefers CI env vars
     # over `git rev-parse`, so this covers: (1) node can't find git.exe on PATH
     # even though this PowerShell session can, (2) ZIP/init trees that still
@@ -3124,7 +3025,7 @@ function Install-Desktop {
     } else {
         Write-Warn "Could not resolve a git commit for the desktop stamp -- write-build-stamp will use its non-git fallback"
     }
->>>>>>> theirs
+
     Push-Location $desktopDir
     $prevEAP = $ErrorActionPreference
     $prevCSCAuto = $env:CSC_IDENTITY_AUTO_DISCOVERY
@@ -3186,11 +3087,9 @@ function Install-Desktop {
         Pop-Location
         throw
     } finally {
-<<<<<<< ours
-        # Restore env to whatever the caller had — don't leak our
-=======
+
         # Restore env to whatever the caller had -- don't leak our
->>>>>>> theirs
+
         # signing-off override into anything install.ps1 invokes later
         # (Stage-PlatformSdks, etc.).
         $env:CSC_IDENTITY_AUTO_DISCOVERY = $prevCSCAuto
@@ -3221,22 +3120,15 @@ function Install-Desktop {
 
     # 3b. The Hermes icon + identity are stamped onto Hermes.exe by the
     #     electron-builder `afterPack` hook (apps/desktop/scripts/after-pack.mjs)
-<<<<<<< ours
-    #     during `npm run pack` above — for every build, so the installer's
-=======
+
     #     during `npm run pack` above -- for every build, so the installer's
->>>>>>> theirs
+
     #     --update rebuild stays branded too. No separate stamp step needed here.
     #     electron-builder's own rcedit step stays disabled (signAndEditExecutable
     #     =false) because enabling it drags in signtool -> winCodeSign -> the
     #     unfixable symlink crash; the afterPack hook runs rcedit directly.
 
-<<<<<<< ours
-    # 4. Create Start Menu + Desktop shortcuts pointing DIRECTLY at the packed
-    #    Hermes.exe. We deliberately do NOT point them at `hermes desktop`: that
-    #    command rebuilds (npm install + electron-builder) on every launch,
-    #    which would cost minutes each time. The packed exe is the consumer —
-=======
+
     # 3c. Grant ALL APPLICATION PACKAGES (S-1-15-2-2) RX on the unpacked app
     #     directory. Chromium's GPU/renderer sandboxes CHECK-fail with
     #     0x80000003 when this ACE is missing alongside orphan AppContainer
@@ -3258,7 +3150,7 @@ function Install-Desktop {
     #    Hermes.exe. We deliberately do NOT point them at `hermes desktop`: that
     #    command rebuilds (npm install + electron-builder) on every launch,
     #    which would cost minutes each time. The packed exe is the consumer --
->>>>>>> theirs
+
     #    launching it directly is instant, and updates flow through the
     #    installer's --update path (which rebuilds once, then relaunches).
     New-DesktopShortcuts -TargetExe $desktopExe
@@ -3314,19 +3206,13 @@ function New-DesktopShortcuts {
         # cached bitmap. Critical on the --update path: the exe was re-stamped
         # with the Hermes icon, but without this the shortcut can keep drawing
         # the old Electron icon until the user manually refreshes / reboots.
-<<<<<<< ours
-        # Best-effort and silent — never fail the install over a cosmetic cache.
-        try {
-            & ie4uinit.exe -show 2>$null
-        } catch {
-            # ie4uinit may be absent/renamed on some SKUs — ignore.
-=======
+
         # Best-effort and silent -- never fail the install over a cosmetic cache.
         try {
             & ie4uinit.exe -show 2>$null
         } catch {
             # ie4uinit may be absent/renamed on some SKUs -- ignore.
->>>>>>> theirs
+
         }
     } catch {
         Write-Warn "Skipping shortcut creation: $($_.Exception.Message)"
@@ -3721,16 +3607,14 @@ $InstallStages += @(
 # process), and throws cleanly if uv truly isn't installed yet.
 function Stage-Uv               { if (-not (Install-Uv))     { throw "uv installation failed" } }
 function Stage-Python           { Resolve-UvCmd; if (-not (Test-Python))    { throw "Python $PythonVersion not available" } }
-<<<<<<< ours
-function Stage-Git              { if (-not (Install-Git))    { throw "Git not available and auto-install failed -- install from https://git-scm.com/download/win then re-run" } }
-=======
+
 function Stage-Git              {
     if (-not (Install-Git)) {
         if ($script:GitInstallFailureReason) { throw $script:GitInstallFailureReason }
         throw "Git not available and auto-install failed -- install from https://git-scm.com/download/win then re-run"
     }
 }
->>>>>>> theirs
+
 # Node is optional (browser tools degrade gracefully without it).  Surface
 # failure to the JSON contract as skipped=true / reason rather than ok=true,
 # so a GUI driver consuming the manifest can distinguish "node ready" from

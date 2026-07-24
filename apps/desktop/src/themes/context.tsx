@@ -109,6 +109,7 @@ function synthLightColors(seed: DesktopTheme): DesktopThemeColors {
     destructiveForeground: '#ffffff',
     sidebarBackground: mix('#fafafa', accent, 0.05),
     sidebarBorder: border,
+    statusbarBackground: mix('#e8e8ec', accent, 0.06),
     userBubble: soft,
     userBubbleBorder: border
   }
@@ -201,6 +202,7 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
     '--theme-warm': c.primary,
     '--theme-background-seed': c.background,
     '--theme-sidebar-seed': c.sidebarBackground ?? c.background,
+    '--ui-statusbar-surface-background': c.statusbarBackground ?? c.sidebarBackground ?? c.background,
     '--theme-card-seed': c.card,
     '--theme-elevated-seed': c.popover,
     '--theme-bubble-seed': c.userBubble ?? c.popover

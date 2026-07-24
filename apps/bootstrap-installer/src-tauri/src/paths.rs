@@ -68,7 +68,7 @@ pub fn bootstrap_cache_dir() -> PathBuf {
 ///
 /// On Windows this is `%LOCALAPPDATA%\hermes\hermes-setup.exe`; on other
 /// platforms the extension differs but the directory is the same.
-<<<<<<< ours
+
 ///
 /// NSIS layout detection: when HERMES_HOME ends with `\data\` (the result
 /// of the desktop's `resolveHermesHome()` NSIS auto-derive in main.ts), the
@@ -77,15 +77,13 @@ pub fn bootstrap_cache_dir() -> PathBuf {
 /// next to `data\` rather than inside it.
 pub fn installer_dest() -> PathBuf {
     let home = hermes_home();
-=======
-pub fn installer_dest() -> PathBuf {
->>>>>>> theirs
+
     let name = if cfg!(target_os = "windows") {
         "hermes-setup.exe"
     } else {
         "hermes-setup"
     };
-<<<<<<< ours
+
 
     // NSIS layout: HERMES_HOME = <root>\data, installer goes in <root>\
     if cfg!(target_os = "windows")
@@ -108,9 +106,7 @@ pub fn installer_dest() -> PathBuf {
         home.display()
     );
     home.join(name)
-=======
-    hermes_home().join(name)
->>>>>>> theirs
+
 }
 
 /// Marker the updater writes for the duration of an in-app update and removes

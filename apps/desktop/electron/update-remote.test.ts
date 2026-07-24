@@ -6,11 +6,7 @@
  * (Wired into npm test:desktop:platforms in package.json.)
  *
  * Why this matters: a public install can carry
-<<<<<<< ours
  * origin=git@github.com:fhghth/Magician.git. A background
-=======
- * origin=git@github.com:NousResearch/hermes-agent.git. A background
->>>>>>> theirs
  * `git fetch origin` then authenticates over SSH and, with a FIDO2/passkey
  * key, triggers an unexplained hardware-touch prompt. isOfficialSshRemote
  * must reliably recognize the official SSH remote (in every URL form,
@@ -20,12 +16,9 @@
  */
 
 import assert from 'node:assert/strict'
-<<<<<<< ours
-import test from 'node:test'
-=======
+
 
 import { test } from 'vitest'
->>>>>>> theirs
 
 import {
   canonicalGitHubRemote,
@@ -36,7 +29,6 @@ import {
 } from './update-remote'
 
 test('canonicalGitHubRemote normalizes SSH and HTTPS forms to the same value', () => {
-<<<<<<< ours
   assert.equal(canonicalGitHubRemote('git@github.com:fhghth/Magician.git'), OFFICIAL_REPO_CANONICAL)
   assert.equal(canonicalGitHubRemote('git@github.com:fhghth/Magician'), OFFICIAL_REPO_CANONICAL)
   assert.equal(canonicalGitHubRemote('ssh://git@github.com/fhghth/Magician.git'), OFFICIAL_REPO_CANONICAL)
@@ -45,16 +37,6 @@ test('canonicalGitHubRemote normalizes SSH and HTTPS forms to the same value', (
   assert.equal(canonicalGitHubRemote('git@github.com:nousresearch/hermes-agent.git'), OFFICIAL_REPO_CANONICAL)
   // Trailing slashes are stripped.
   assert.equal(canonicalGitHubRemote('https://github.com/fhghth/Magician/'), OFFICIAL_REPO_CANONICAL)
-=======
-  assert.equal(canonicalGitHubRemote('git@github.com:NousResearch/hermes-agent.git'), OFFICIAL_REPO_CANONICAL)
-  assert.equal(canonicalGitHubRemote('git@github.com:NousResearch/hermes-agent'), OFFICIAL_REPO_CANONICAL)
-  assert.equal(canonicalGitHubRemote('ssh://git@github.com/NousResearch/hermes-agent.git'), OFFICIAL_REPO_CANONICAL)
-  assert.equal(canonicalGitHubRemote('https://github.com/NousResearch/hermes-agent.git'), OFFICIAL_REPO_CANONICAL)
-  // Case-insensitive: an uppercased owner still canonicalizes to the same repo.
-  assert.equal(canonicalGitHubRemote('git@github.com:nousresearch/hermes-agent.git'), OFFICIAL_REPO_CANONICAL)
-  // Trailing slashes are stripped.
-  assert.equal(canonicalGitHubRemote('https://github.com/NousResearch/hermes-agent/'), OFFICIAL_REPO_CANONICAL)
->>>>>>> theirs
 })
 
 test('canonicalGitHubRemote is empty for falsy input', () => {
@@ -64,29 +46,17 @@ test('canonicalGitHubRemote is empty for falsy input', () => {
 })
 
 test('isSshRemote detects scp-like and ssh:// forms only', () => {
-<<<<<<< ours
   assert.equal(isSshRemote('git@github.com:fhghth/Magician.git'), true)
   assert.equal(isSshRemote('ssh://git@github.com/fhghth/Magician.git'), true)
   assert.equal(isSshRemote('https://github.com/fhghth/Magician.git'), false)
-=======
-  assert.equal(isSshRemote('git@github.com:NousResearch/hermes-agent.git'), true)
-  assert.equal(isSshRemote('ssh://git@github.com/NousResearch/hermes-agent.git'), true)
-  assert.equal(isSshRemote('https://github.com/NousResearch/hermes-agent.git'), false)
->>>>>>> theirs
   assert.equal(isSshRemote(''), false)
   assert.equal(isSshRemote(null), false)
 })
 
 test('isOfficialSshRemote is true only for the official repo over SSH', () => {
-<<<<<<< ours
   assert.equal(isOfficialSshRemote('git@github.com:fhghth/Magician.git'), true)
   assert.equal(isOfficialSshRemote('git@github.com:fhghth/Magician'), true)
   assert.equal(isOfficialSshRemote('ssh://git@github.com/fhghth/Magician.git'), true)
-=======
-  assert.equal(isOfficialSshRemote('git@github.com:NousResearch/hermes-agent.git'), true)
-  assert.equal(isOfficialSshRemote('git@github.com:NousResearch/hermes-agent'), true)
-  assert.equal(isOfficialSshRemote('ssh://git@github.com/NousResearch/hermes-agent.git'), true)
->>>>>>> theirs
   // Case-insensitive owner/repo match.
   assert.equal(isOfficialSshRemote('git@github.com:nousresearch/hermes-agent.git'), true)
 })
@@ -96,17 +66,10 @@ test('isOfficialSshRemote does NOT match forks, other hosts, or HTTPS', () => {
   // not the official upstream, so the SSH-avoidance swap must not apply.
   assert.equal(isOfficialSshRemote('git@github.com:someuser/hermes-agent.git'), false)
   // Same repo name on a different host is not the official repo.
-<<<<<<< ours
   assert.equal(isOfficialSshRemote('git@gitlab.com:fhghth/Magician.git'), false)
   // HTTPS to the official repo never prompts for SSH/FIDO2, so it keeps the
   // normal fetch path — must not be flagged as an official SSH remote.
   assert.equal(isOfficialSshRemote('https://github.com/fhghth/Magician.git'), false)
-=======
-  assert.equal(isOfficialSshRemote('git@gitlab.com:NousResearch/hermes-agent.git'), false)
-  // HTTPS to the official repo never prompts for SSH/FIDO2, so it keeps the
-  // normal fetch path — must not be flagged as an official SSH remote.
-  assert.equal(isOfficialSshRemote('https://github.com/NousResearch/hermes-agent.git'), false)
->>>>>>> theirs
   assert.equal(isOfficialSshRemote(''), false)
   assert.equal(isOfficialSshRemote(null), false)
 })
