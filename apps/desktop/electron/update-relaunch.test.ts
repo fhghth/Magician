@@ -78,12 +78,18 @@ test('resolveUnpackedRelease is not fooled by a sibling prefix dir', () => {
 })
 
 test('decideRelaunchOutcome: only under-unpacked + sandbox-ok relaunches', () => {
-  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: true }), 'relaunch')
+  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: true, isNsis: false }), 'relaunch')
   // Under unpacked but sandbox not launchable → manual (keep a working window).
-  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: false }), 'manual')
+  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: false, isNsis: false }), 'manual')
   // Not under unpacked → guiSkew regardless of sandbox flag.
-  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: true }), 'guiSkew')
-  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: false }), 'guiSkew')
+  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: true, isNsis: false }), 'guiSkew')
+  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: false, isNsis: false }), 'guiSkew')
+})
+
+test('decideRelaunchOutcome: NSIS layout always returns relaunch', () => {
+  // NSIS shell: app.asar was already replaced by the updater — safe to restart.
+  assert.equal(decideRelaunchOutcome({ underUnpacked: false, sandboxOk: false, isNsis: true }), 'relaunch')
+  assert.equal(decideRelaunchOutcome({ underUnpacked: true, sandboxOk: true, isNsis: true }), 'relaunch')
 })
 
 // ---------------------------------------------------------------------------
