@@ -6,8 +6,9 @@
  *                 unchanged for dark, and a synth pass generates light).
  *   typography  — font families + optional stylesheet URL.
  *
- * Everything else (layout, sizing, radius, line-height) lives in styles.css.
- * Add new themes in `presets.ts` — no other code changes needed.
+ * Everything else (layout, sizing, radius, line-height) lives in styles.css;
+ * per-theme overrides live in `layout`. Add new themes in `presets.ts` —
+ * no other code changes needed.
  */
 
 export interface DesktopThemeColors {
@@ -87,6 +88,16 @@ export interface DesktopTerminalPalette {
   brightWhite?: string
 }
 
+export interface DesktopThemeLayout {
+  /**
+   * Corner-radius scale multiplier. styles.css defaults to 0.6 — every
+   * `--radius-*` token is `scalar × size`, so lower values sharpen all
+   * corners app-wide. Minimalist skins use a smaller value than the glass
+   * look; omitted keys fall back to the global default.
+   */
+  radiusScalar?: number
+}
+
 export interface DesktopTheme {
   name: string
   label: string
@@ -95,6 +106,8 @@ export interface DesktopTheme {
   colors: DesktopThemeColors
   /** Hand-tuned dark palette. Skins like `nous` ship one. */
   darkColors?: DesktopThemeColors
+  /** Optional per-theme layout overrides (e.g. corner radius). */
+  layout?: DesktopThemeLayout
   typography?: Partial<DesktopThemeTypography>
   /** Light-variant terminal ANSI palette (also the fallback for dark). */
   terminal?: DesktopTerminalPalette

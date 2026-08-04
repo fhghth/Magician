@@ -101,6 +101,11 @@ for call-site shadow or border inventions.
 Never hardcode `border-gray-*`, `bg-white`, `text-black`, etc. The white tile in
 `BrandMark` is the one sanctioned literal (the mark needs a fixed backdrop).
 
+Corner radius is scaled app-wide by `--radius-scalar` (default 0.6 in
+`styles.css`). Themes may ship a per-theme `layout.radiusScalar` to sharpen
+corners — minimalist skins (paper, graphite) do; legacy glass skins keep the
+default.
+
 ## Buttons — one component
 
 `src/components/ui/button.tsx` is the single source. Pick a `variant` + `size`;

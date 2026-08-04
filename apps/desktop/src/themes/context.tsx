@@ -232,6 +232,15 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
     root.style.setProperty(k, v)
   }
 
+  // Per-theme layout overrides. Remove the inline value when the theme ships
+  // none so a switch away from a themed radius falls back to the stylesheet
+  // default (--radius-scalar: 0.6) instead of leaking the previous skin.
+  if (theme.layout?.radiusScalar != null) {
+    root.style.setProperty('--radius-scalar', String(theme.layout.radiusScalar))
+  } else {
+    root.style.removeProperty('--radius-scalar')
+  }
+
   const chromeBg = chromeBackground(c.background, isDark)
 
   window.hermesDesktop?.setTitleBarTheme?.({
