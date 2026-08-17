@@ -350,7 +350,8 @@ export const en: Translations = {
       about: 'About',
       billing: 'Billing',
       notifications: 'Notifications',
-      plugins: 'Plugins'
+      plugins: 'Plugins',
+      meetings: 'Meetings'
     },
     plugins: {
       title: 'Desktop plugins',
@@ -405,6 +406,28 @@ export const en: Translations = {
       completionSoundTitle: 'Completion Sound',
       completionSoundDesc: 'Plays when an agent turn finishes. Pick a preset and preview it here.',
       completionSoundPreview: 'Preview'
+    },
+    meetings: {
+      title: 'Meetings',
+      intro: 'Default meeting model and reusable seat presets for new meeting rooms.',
+      modelTitle: 'Default Meeting Model',
+      modelDesc:
+        'Seats inherit the origin session model pick; this default is used when the session carries no model of its own (config.yaml \u201cmeeting\u201d block).',
+      provider: 'Provider',
+      model: 'Model',
+      inheritMain: 'Inherit main model',
+      presetsTitle: 'Seat Presets',
+      presetsDesc: 'Reusable name / role / objective / model packs the new-meeting dialog fills seats from.',
+      presetName: 'Name',
+      presetRole: 'Role',
+      presetObjective: 'Objective',
+      presetModel: 'Model',
+      addPreset: 'Add preset',
+      deletePreset: 'Delete',
+      deleteConfirm: 'Delete this preset?',
+      editPreset: 'Edit',
+      emptyPresets: 'No presets yet — add one to quickly fill seats in a new meeting.',
+      saveFailed: 'Failed to save meeting settings'
     },
     sections: {
       model: 'Model',
@@ -1824,7 +1847,8 @@ export const en: Translations = {
       'new-session': 'New session',
       skills: 'Capabilities',
       messaging: 'Messaging',
-      artifacts: 'Artifacts'
+      artifacts: 'Artifacts',
+      meeting: 'Meeting'
     },
     searchAria: 'Search sessions',
     searchPlaceholder: 'Search sessions…',
@@ -1952,6 +1976,108 @@ export const en: Translations = {
       thisWeek: 'Earlier this week',
       lastWeek: 'Last week',
       thisMonth: 'Earlier this month'
+    }
+  },
+
+  meetings: {
+    sectionTitle: 'Meetings',
+    create: 'Create meeting',
+    noMeetings: 'No meetings yet',
+    emptyTitle: 'No meetings in this window',
+    emptyHint:
+      'Start a multi-seat discussion room from a chat — the room will appear here and in the sidebar while it runs.',
+    openDraft: 'Create meeting',
+    status: {
+      created: 'Starting',
+      running: 'In session',
+      suspended: 'Paused',
+      converging: 'Converging',
+      closed: 'Concluded',
+      aborted: 'Aborted',
+      interrupted: 'Interrupted'
+    },
+    from: source => `via ${source}`,
+    standalone: 'Standalone meeting',
+    roundsSpent: (spent, cap) => (cap > 0 ? `Round ${spent}/${cap}` : `Round ${spent}`),
+    budget: {
+      roundsLabel: 'Round cap',
+      secondsLabel: 'Duration cap (s)',
+      tokensLabel: 'Token cap'
+    },
+    room: {
+      speaker: 'Now speaking',
+      pause: 'Pause',
+      resume: 'Resume',
+      takeover: 'Take over',
+      veto: 'Veto',
+      monologue: 'Monologue',
+      end: 'End meeting',
+      comingLater: 'More seats will appear here as they join or speak',
+      queueNext: label => `Next: ${label}`,
+      pendingTurn: 'Waiting for turn',
+      seatThinking: lines => (lines > 0 ? `${lines} line${lines === 1 ? '' : 's'} of thinking — click to expand` : ''),
+      waitingTurn: 'Listening',
+      collapsedSeat: name => `${name} — speaking`,
+      emptyTable: 'The room is empty. Seats join as the meeting starts.',
+      tabs: {
+        dialogue: 'Dialogue',
+        focus: 'Focus',
+        playback: 'Playback'
+      },
+      focusHint: 'Pending items and the decision ledger will show here.',
+      playbackHint: 'A replayable timeline of the room will show here.',
+      issueOpen: 'In progress',
+      issueDecided: 'Decided',
+      issueDeferred: 'Deferred',
+      expandFullRecord: 'Expand full transcript',
+      collapseFullRecord: 'Collapse transcript',
+      fullRecord: 'Full transcript'
+    },
+    composer: {
+      placeholder: 'Speak into the room…',
+      interjectHint: 'Send queues your words as the next turn; long-press or Alt+Enter interrupts',
+      agree: 'Agree',
+      explore: 'Explore further',
+      keyPoint: 'Mark as key point',
+      reject: 'Reject',
+      queued: 'You are in the queue',
+      interjectUnavailable: 'This gateway cannot take interjections yet.'
+    },
+    draft: {
+      title: 'New meeting',
+      description: 'One-off, pre-configured room for a chat session: roles, budget and a topic decide the flow.',
+      topicLabel: 'Topic',
+      topicPlaceholder: 'What is this room about?',
+      modeLabel: 'Mode',
+      modeLight: 'Quick consult',
+      modeFull: 'Full meeting',
+      seatsLabel: 'Seats',
+      addSeat: 'Add seat',
+      presetLabel: 'Presets',
+      presetPlaceholder: 'Choose a persona preset…',
+      presetEmpty: 'No presets yet — add some in Settings → Meetings',
+      presetAdd: 'Apply',
+      removeSeat: 'Remove',
+      nameRow: 'Name',
+      roleLabel: 'Role',
+      objectiveLabel: 'Objective',
+      modelLegacyHint: 'Per-seat models arrive with the M1.1 backend pass; seats inherit the session model for now.',
+      budgetLabel: 'Budget',
+      unbounded: 'Unlimited',
+      sourceLabel: 'Source chat',
+      sourceNone: 'No chat (standalone meeting)',
+      sourceEmpty: 'No session available — open a chat first',
+      sourceMissing: 'No sessions in this profile',
+      createButton: 'Start meeting',
+      creating: 'Starting…',
+      createFailed: 'Could not start the meeting'
+    },
+    roles: {
+      facilitator: 'Facilitator',
+      advocate: 'Advocate',
+      critic: 'Critic',
+      expert: 'Expert',
+      observer: 'Observer'
     }
   },
 

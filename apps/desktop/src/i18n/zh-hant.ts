@@ -231,7 +231,8 @@ export const zhHant = defineLocale({
       archivedChats: '已封存聊天',
       about: '關於',
       billing: '帳單',
-      notifications: '通知'
+      notifications: '通知',
+      meetings: '會議'
     },
     notifications: {
       title: '通知',
@@ -273,6 +274,28 @@ export const zhHant = defineLocale({
       completionSoundTitle: '完成提示音',
       completionSoundDesc: '代理回合結束時播放。可在此選擇預設並預覽。',
       completionSoundPreview: '預覽'
+    },
+    meetings: {
+      title: '會議',
+      intro: '新建會議室的預設模型與可重複使用的人物範本。',
+      modelTitle: '預設會議模型',
+      modelDesc:
+        '席位優先繼承來源對話的模型選擇；僅當對話本身未選用模型時，才使用此預設值（對應 config.yaml 的 meeting 區段）。',
+      provider: 'Provider',
+      model: '模型',
+      inheritMain: '繼承主模型',
+      presetsTitle: '人物範本庫',
+      presetsDesc: '可重複使用的 名稱/角色/目標/模型 組合，新建會議視窗可一鍵填入席位。',
+      presetName: '名稱',
+      presetRole: '角色',
+      presetObjective: '目標',
+      presetModel: '模型',
+      addPreset: '新增範本',
+      deletePreset: '刪除',
+      deleteConfirm: '刪除該範本？',
+      editPreset: '編輯',
+      emptyPresets: '尚無範本——新增一個即可在新建會議時快速填入席位。',
+      saveFailed: '儲存會議設定失敗'
     },
     sections: {
       model: '模型',
@@ -1610,7 +1633,8 @@ export const zhHant = defineLocale({
       'new-session': '新工作階段',
       skills: '技能與工具',
       messaging: '訊息平台',
-      artifacts: '成品'
+      artifacts: '成品',
+      meeting: '會議'
     },
     searchAria: '搜尋工作階段',
     searchPlaceholder: '搜尋工作階段…',
@@ -1731,6 +1755,107 @@ export const zhHant = defineLocale({
       thisWeek: '本週',
       lastWeek: '上週',
       thisMonth: '本月'
+    }
+  },
+
+  meetings: {
+    sectionTitle: '會議',
+    create: '新建會議',
+    noMeetings: '還沒有會議',
+    emptyTitle: '這個視窗還沒有會議',
+    emptyHint: '從對話發起多席位會議室——進行中的會議會出現在這裡與側邊欄。',
+    openDraft: '新建會議',
+    status: {
+      created: '即將開始',
+      running: '進行中',
+      suspended: '已暫停',
+      converging: '收斂中',
+      closed: '已結束',
+      aborted: '已中止',
+      interrupted: '已中斷'
+    },
+    from: source => `來源：${source}`,
+    standalone: '獨立會議',
+    roundsSpent: (spent, cap) => (cap > 0 ? `回合 ${spent}/${cap}` : `回合 ${spent}`),
+    budget: {
+      roundsLabel: '回合上限',
+      secondsLabel: '時長上限(秒)',
+      tokensLabel: 'Token 上限'
+    },
+    room: {
+      speaker: '當前發言',
+      pause: '暫停',
+      resume: '繼續',
+      takeover: '接管',
+      veto: '否決',
+      monologue: '一言堂',
+      end: '結束會議',
+      comingLater: '更多席位加入或發言後會出現在這裡',
+      queueNext: label => `接下來：${label}`,
+      pendingTurn: '排隊輪次',
+      seatThinking: lines => (lines > 0 ? `${lines} 行思考過程 · 點擊展開` : ''),
+      waitingTurn: '聆聽中',
+      collapsedSeat: name => `${name} — 中`,
+      emptyTable: '圓桌還空著。會議開始後席位會入座。',
+      tabs: {
+        dialogue: '對話',
+        focus: '焦點',
+        playback: '回放'
+      },
+      focusHint: '待決事項與決策帳本將顯示在這裡。',
+      playbackHint: '可回放的會議時間軸將顯示在這裡。',
+      issueOpen: '進行中',
+      issueDecided: '已決策',
+      issueDeferred: '已擱置',
+      expandFullRecord: '展開完整會議記錄',
+      collapseFullRecord: '收起完整記錄',
+      fullRecord: '完整會議記錄'
+    },
+    composer: {
+      placeholder: '向會議發言…',
+      interjectHint: '傳送=排隊插話;長按或 Alt+Enter 觸發 P0 中斷',
+      agree: '贊同',
+      explore: '追問',
+      keyPoint: '標記關鍵',
+      reject: '否決',
+      queued: '你已加入佇列',
+      interjectUnavailable: '目前閘道暫不支援插話。'
+    },
+    draft: {
+      title: '新建會議',
+      description: '一次性會議表單：角色、預算與議題決定會議走向，歸屬發起它的對話工作階段。',
+      topicLabel: '議題',
+      topicPlaceholder: '這場會議要討論什麼？',
+      modeLabel: '模式',
+      modeLight: '輕量會診',
+      modeFull: '完整會議',
+      seatsLabel: '席位',
+      addSeat: '增加席位',
+      presetLabel: '人物範本',
+      presetPlaceholder: '選擇人物範本…',
+      presetEmpty: '尚無人物範本——可在「設定 → 會議」中新增',
+      presetAdd: '套用',
+      removeSeat: '移除',
+      nameRow: '姓名',
+      roleLabel: '角色',
+      objectiveLabel: '目標',
+      modelLegacyHint: '每席模型將在 M1.1 接通後端透傳；目前席位繼承工作階段模型。',
+      budgetLabel: '預算',
+      unbounded: '不限',
+      sourceLabel: '來源對話',
+      sourceNone: '不關聯對話（獨立會議）',
+      sourceEmpty: '沒有可用工作階段——請先開啟一個對話',
+      sourceMissing: '目前沒有工作階段',
+      createButton: '開始會議',
+      creating: '啟動中…',
+      createFailed: '會議啟動失敗'
+    },
+    roles: {
+      facilitator: '協調者',
+      advocate: '提出者',
+      critic: '質疑者',
+      expert: '專家',
+      observer: '觀察者'
     }
   },
 

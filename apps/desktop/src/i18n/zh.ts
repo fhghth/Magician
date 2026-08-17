@@ -341,7 +341,8 @@ export const zh: Translations = {
       about: '关于',
       billing: '账单',
       notifications: '通知',
-      plugins: '插件'
+      plugins: '插件',
+      meetings: '会议'
     },
     plugins: {
       title: '桌面插件',
@@ -397,6 +398,28 @@ export const zh: Translations = {
       completionSoundTitle: '完成提示音',
       completionSoundDesc: '智能体回合结束时播放。可在此选择预设并预览。',
       completionSoundPreview: '预览'
+    },
+    meetings: {
+      title: '会议',
+      intro: '新建会议室的默认模型与可复用的人物模板。',
+      modelTitle: '默认会议模型',
+      modelDesc:
+        '席位优先继承来源会话的模型选择；仅当会话本身未选用模型时，才使用此默认值（对应 config.yaml 的 meeting 段）。',
+      provider: 'Provider',
+      model: '模型',
+      inheritMain: '继承主模型',
+      presetsTitle: '人物模板库',
+      presetsDesc: '可复用的 名称/角色/目标/模型 组合，新建会议模态可一键填充席位。',
+      presetName: '名称',
+      presetRole: '角色',
+      presetObjective: '目标',
+      presetModel: '模型',
+      addPreset: '新增模板',
+      deletePreset: '删除',
+      deleteConfirm: '删除该模板？',
+      editPreset: '编辑',
+      emptyPresets: '还没有模板——添加一个即可在新建会议时快速填充席位。',
+      saveFailed: '保存会议设置失败'
     },
     sections: {
       model: '模型',
@@ -2018,7 +2041,8 @@ export const zh: Translations = {
       'new-session': '新建会话',
       skills: '技能与工具',
       messaging: '消息平台',
-      artifacts: '产物'
+      artifacts: '产物',
+      meeting: '会议'
     },
     searchAria: '搜索会话',
     searchPlaceholder: '搜索会话…',
@@ -2145,6 +2169,107 @@ export const zh: Translations = {
       thisWeek: '本周',
       lastWeek: '上周',
       thisMonth: '本月'
+    }
+  },
+
+  meetings: {
+    sectionTitle: '会议',
+    create: '新建会议',
+    noMeetings: '还没有会议',
+    emptyTitle: '这个窗口还没有会议',
+    emptyHint: '从对话侧发起多席讨论室——运行中的会议会出现在这里和侧边栏。',
+    openDraft: '新建会议',
+    status: {
+      created: '待开始',
+      running: '进行中',
+      suspended: '已暂停',
+      converging: '收敛中',
+      closed: '已结束',
+      aborted: '已中止',
+      interrupted: '已中断'
+    },
+    from: source => `来源:${source}`,
+    standalone: '独立会议',
+    roundsSpent: (spent, cap) => (cap > 0 ? `回合 ${spent}/${cap}` : `回合 ${spent}`),
+    budget: {
+      roundsLabel: '回合上限',
+      secondsLabel: '时长上限(秒)',
+      tokensLabel: 'Token 上限'
+    },
+    room: {
+      speaker: '当前发言',
+      pause: '暂停',
+      resume: '继续',
+      takeover: '接管',
+      veto: '否决',
+      monologue: '一言堂',
+      end: '结束会议',
+      comingLater: '更多席位加入或发言后会出现在这里',
+      queueNext: label => `接下来:${label}`,
+      pendingTurn: '排队轮次',
+      seatThinking: lines => (lines > 0 ? `${lines} 行思考过程 · 点击展开` : ''),
+      waitingTurn: '聆听中',
+      collapsedSeat: name => `${name} — 发言中`,
+      emptyTable: '圆桌还空着。会议开始后席位会入座。',
+      tabs: {
+        dialogue: '对话',
+        focus: '焦点',
+        playback: '回放'
+      },
+      focusHint: '待决事项与决策账本将显示在这里。',
+      playbackHint: '可回放的会议时间线将显示在这里。',
+      issueOpen: '进行中',
+      issueDecided: '已决策',
+      issueDeferred: '已搁置',
+      expandFullRecord: '展开完整会议记录',
+      collapseFullRecord: '收起完整记录',
+      fullRecord: '完整会议记录'
+    },
+    composer: {
+      placeholder: '向会议发言…',
+      interjectHint: '发送=排队插话;长按或 Alt+Enter 触发 P0 中断',
+      agree: '同意',
+      explore: '追问',
+      keyPoint: '标记关键',
+      reject: '否决',
+      queued: '你已进入队列',
+      interjectUnavailable: '当前网关暂不支持插话。'
+    },
+    draft: {
+      title: '新建会议',
+      description: '一次性会议表单：角色、预算与议题决定会议走向，归属发起它的对话会话。',
+      topicLabel: '议题',
+      topicPlaceholder: '这场会议要讨论什么?',
+      modeLabel: '模式',
+      modeLight: '轻量会诊',
+      modeFull: '完整会议',
+      seatsLabel: '席位',
+      addSeat: '增加席位',
+      presetLabel: '人物模板',
+      presetPlaceholder: '选择人物模板…',
+      presetEmpty: '暂无人物模板——可在“设置 → 会议”中添加',
+      presetAdd: '应用',
+      removeSeat: '移除',
+      nameRow: '姓名',
+      roleLabel: '角色',
+      objectiveLabel: '目标',
+      modelLegacyHint: '每席模型将在 M1.1 接通后端透传；目前席位继承会话模型。',
+      budgetLabel: '预算',
+      unbounded: '不限',
+      sourceLabel: '来源对话',
+      sourceNone: '不关联对话（独立会议）',
+      sourceEmpty: '没有可用会话——请先打开一个对话',
+      sourceMissing: '当前配置下没有会话',
+      createButton: '开始会议',
+      creating: '启动中…',
+      createFailed: '会议启动失败'
+    },
+    roles: {
+      facilitator: '协调者',
+      advocate: '提出者',
+      critic: '质疑者',
+      expert: '专家',
+      observer: '观察者'
     }
   },
 

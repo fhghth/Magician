@@ -1292,6 +1292,57 @@ atexit.register(_shutdown_sessions)
 _start_idle_reaper()
 
 
+# ── Meeting-room lifecycle (agent/meeting) ──────────────────────────────
+# Meetings are backend session-state machines (meeting lifetime == program
+# lifetime). On boot, any meeting left in an active status by a previous
+# crash is marked ``interrupted``; on exit, active meetings are force-
+# aborted. The boot scan runs on a daemon thread so importing this module
+# never blocks on (or eagerly forces) the state DB — it only opens lazily
+# once the process is up.
+
+_MEETING_SCAN_STARTED = False
+_MEETING_SCAN_LOCK = threading.Lock()
+
+
+def _start_meeting_stale_scan() -> None:
+    """Run the startup orphan scan once (idempotent across re-imports)."""
+    global _MEETING_SCAN_STARTED
+    with _MEETING_SCAN_LOCK:
+        if _MEETING_SCAN_STARTED:
+            return
+        _MEETING_SCAN_STARTED = True
+
+    def _scan() -> None:
+        try:
+            from agent.meeting.engine import mark_stale_meetings_interrupted
+            from agent.meeting.store import MeetingStore
+
+            db = _get_db()
+            if db is not None:
+                mark_stale_meetings_interrupted(MeetingStore(db))
+        except Exception:
+            logger.debug("meeting stale-scan failed", exc_info=True)
+
+    threading.Thread(target=_scan, daemon=True, name="meeting-stale-scan").start()
+
+
+def _shutdown_meetings() -> None:
+    """Program-exit hook: force-abort any meeting still in an active status."""
+    try:
+        from agent.meeting.engine import shutdown_all_meetings
+        from agent.meeting.store import MeetingStore
+
+        db = _get_db()
+        if db is not None:
+            shutdown_all_meetings(MeetingStore(db))
+    except Exception:
+        logger.debug("meeting shutdown hook failed", exc_info=True)
+
+
+_start_meeting_stale_scan()
+atexit.register(_shutdown_meetings)
+
+
 # ── Plumbing ──────────────────────────────────────────────────────────
 
 
@@ -13889,6 +13940,7 @@ def _browser_disconnect(rid) -> dict:
 from . import (  # noqa: E402
     methods_complete as _methods_complete,
     methods_config as _methods_config,
+    methods_meeting as _methods_meeting,
     methods_prompt as _methods_prompt,
     methods_session as _methods_session,
     methods_tools as _methods_tools,
@@ -13900,6 +13952,7 @@ for _m in (
     _methods_config,
     _methods_complete,
     _methods_tools,
+    _methods_meeting,
 ):
     _m.register(sys.modules[__name__])
 del _m

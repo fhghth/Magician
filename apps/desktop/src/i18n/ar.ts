@@ -302,7 +302,8 @@ export const ar = defineLocale({
       about: 'حول',
       notifications: 'الإشعارات',
       keybinds: 'اختصارات لوحة المفاتيح',
-      plugins: 'الإضافات'
+      plugins: 'الإضافات',
+      meetings: 'الاجتماعات'
     },
     plugins: {
       title: 'إضافات سطح المكتب',
@@ -355,6 +356,28 @@ export const ar = defineLocale({
       completionSoundTitle: 'صوت الاكتمال',
       completionSoundDesc: 'يُشغّل عند انتهاء دور الوكيل. اختر إعدادا مسبقا وعاينه هنا.',
       completionSoundPreview: 'معاينة'
+    },
+    meetings: {
+      title: 'الاجتماعات',
+      intro: 'النموذج الافتراضي لاجتماعات القاعات وقوالب الأعضاء القابلة لإعادة الاستخدام.',
+      modelTitle: 'نموذج الاجتماع الافتراضي',
+      modelDesc:
+        'المقاعد ترث اختيار نموذج جلسة المصدر أولا؛ يُستخدم هذا الافتراضي فقط عندما لا تحمل الجلسة نموذجا خاصا بها (قسم meeting في config.yaml).',
+      provider: 'المزوّد',
+      model: 'النموذج',
+      inheritMain: 'وراثة النموذج الرئيسي',
+      presetsTitle: 'مكتبة قوالب الأعضاء',
+      presetsDesc: 'مجموعات الاسم/الدور/الهدف/النموذج القابلة لإعادة الاستخدام، يملأ بها حوار الاجتماع الجديد المقاعد.',
+      presetName: 'الاسم',
+      presetRole: 'الدور',
+      presetObjective: 'الهدف',
+      presetModel: 'النموذج',
+      addPreset: 'إضافة قالب',
+      deletePreset: 'حذف',
+      deleteConfirm: 'حذف هذا القالب؟',
+      editPreset: 'تعديل',
+      emptyPresets: 'لا توجد قوالب بعد — أضف واحدا لملء المقاعد بسرعة في اجتماع جديد.',
+      saveFailed: 'فشل حفظ إعدادات الاجتماع'
     },
     sections: {
       model: 'النموذج',
@@ -1529,6 +1552,7 @@ export const ar = defineLocale({
       skills: 'المهارات',
       messaging: 'المراسلة',
       artifacts: 'العناصر',
+      meeting: 'الاجتماع',
       chat: 'المحادثة',
       settings: 'الإعدادات',
       cron: 'المهام المجدولة',
@@ -1651,6 +1675,107 @@ export const ar = defineLocale({
       ageMin: 'دقيقة'
     }
   },
+  meetings: {
+    sectionTitle: 'الاجتماعات',
+    create: 'إنشاء اجتماع',
+    noMeetings: 'لا توجد اجتماعات بعد',
+    emptyTitle: 'لا توجد اجتماعات في هذه النافذة',
+    emptyHint: 'ابدأ غرفة نقاش متعددة المقاعد من محادثة — ستظهر الغرفة هنا وفي الشريط الجانبي.',
+    openDraft: 'إنشاء اجتماع',
+    status: {
+      created: 'قيد البدء',
+      running: 'جاري',
+      suspended: 'متوقف مؤقتًا',
+      converging: 'قيد التوافق',
+      closed: 'منتهٍ',
+      aborted: 'ملغى',
+      interrupted: 'مقاطع'
+    },
+    from: source => `عبر ${source}`,
+    standalone: 'اجتماع مستقل',
+    roundsSpent: (spent, cap) => (cap > 0 ? `الجولة ${spent}/${cap}` : `الجولة ${spent}`),
+    budget: {
+      roundsLabel: 'حد الجولات',
+      secondsLabel: 'حد المدة (ثانية)',
+      tokensLabel: 'حد الرموز'
+    },
+    room: {
+      speaker: 'المتحدث الحالي',
+      pause: 'إيقاف مؤقت',
+      resume: 'استئناف',
+      takeover: 'تولّي',
+      veto: 'رفض',
+      monologue: 'منفرد',
+      end: 'إنهاء الاجتماع',
+      comingLater: 'ستظهر المقاعد الأخرى هنا عند الانضمام أو الكلام',
+      queueNext: label => `التالي:${label}`,
+      pendingTurn: 'بانتظار الدور',
+      seatThinking: lines => (lines > 0 ? `${lines} سطرًا من التفكير — اضغط للتوسيع` : ''),
+      waitingTurn: 'يستمع',
+      collapsedSeat: name => `${name} — يتحدث`,
+      emptyTable: 'الطاولة فارغة. ستشغل المقاعد عند بدء الاجتماع.',
+      tabs: {
+        dialogue: 'الحوار',
+        focus: 'التركيز',
+        playback: 'إعادة'
+      },
+      focusHint: 'البنود المعلقة وسجل القرارات ستظهر هنا.',
+      playbackHint: 'خط زمني قابل لإعادة التشغيل سيظهر هنا.',
+      issueOpen: 'قيد التقدم',
+      issueDecided: 'مُقرر',
+      issueDeferred: 'مؤجل',
+      expandFullRecord: 'توسيع المحضر الكامل',
+      collapseFullRecord: 'طي المحضر',
+      fullRecord: 'المحضر الكامل'
+    },
+    composer: {
+      placeholder: 'تحدث في الاجتماع…',
+      interjectHint: 'الإرسال يضع كلامك كدور تالٍ؛ اضغط مطولًا أو Alt+Enter للمقاطعة',
+      agree: 'موافقة',
+      explore: 'استفسار',
+      keyPoint: 'وضع علامة',
+      reject: 'رفض',
+      queued: 'أنت في الطابور',
+      interjectUnavailable: 'هذه البوابة لا تدعم المقاطعات بعد.'
+    },
+    draft: {
+      title: 'اجتماع جديد',
+      description: 'غرفة مخصصة لمرة واحدة لمحادثة: الأدوار والميزانية والموضوع يحددون مسارها.',
+      topicLabel: 'الموضوع',
+      topicPlaceholder: 'عن ماذا سيكون هذا الاجتماع؟',
+      modeLabel: 'الوضع',
+      modeLight: 'استشارة سريعة',
+      modeFull: 'اجتماع كامل',
+      seatsLabel: 'المقاعد',
+      addSeat: 'إضافة مقعد',
+      presetLabel: 'القوالب',
+      presetPlaceholder: 'اختر قالب شخصية…',
+      presetEmpty: 'لا توجد قوالب بعد — أضفها من الإعدادات ← الاجتماعات',
+      presetAdd: 'تطبيق',
+      removeSeat: 'إزالة',
+      nameRow: 'الاسم',
+      roleLabel: 'الدور',
+      objectiveLabel: 'الهدف',
+      modelLegacyHint: 'نماذج المقاعد ستُربط بالخادم في M1.1؛ حاليًا تورث نماذج الجلسة.',
+      budgetLabel: 'الميزانية',
+      unbounded: 'غير محدود',
+      sourceLabel: 'المحادثة المصدر',
+      sourceNone: 'بدون محادثة (اجتماع مستقل)',
+      sourceEmpty: 'لا توجد جلسة متاحة — افتح محادثة أولًا',
+      sourceMissing: 'لا توجد جلسات في هذا الملف',
+      createButton: 'بدء الاجتماع',
+      creating: 'جارٍ البدء…',
+      createFailed: 'تعذر بدء الاجتماع'
+    },
+    roles: {
+      facilitator: 'منسق',
+      advocate: 'مقترح',
+      critic: 'ناقد',
+      expert: 'خبير',
+      observer: 'مراقب'
+    }
+  },
+
   composer: {
     message: 'الرسالة',
     wakingProfile: profile => `جار إيقاظ ${profile}`,

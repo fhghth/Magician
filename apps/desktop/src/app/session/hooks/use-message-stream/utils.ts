@@ -96,6 +96,19 @@ export const SUBAGENT_EVENT_TYPES = new Set([
   'subagent.complete'
 ])
 
+// Meeting-room lifecycle + progress events driven by the backend scheduler
+// (`agent/meeting/scheduler.py`). They are scoped like subagent events: each
+// carries the meeting's session id, and the desktop route drops them when
+// unstamped so they never attach to the focused chat.
+export const MEETING_EVENT_TYPES = new Set([
+  'meeting.started',
+  'meeting.turn.complete',
+  'meeting.budget.update',
+  'meeting.converging',
+  'meeting.minutes',
+  'meeting.conclusion'
+])
+
 // Anonymous progress events that carry todos but no name still belong to the
 // todo stream; named todo events are obviously routed there too.
 export function toTodoPayload(payload: GatewayEventPayload | undefined): GatewayEventPayload | undefined {

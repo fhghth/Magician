@@ -49,6 +49,7 @@ import {
 import type {
   BrowserManageResponse,
   ClientSessionState,
+  MeetingCreateResponse,
   SessionCompressResponse,
   SessionTitleResponse,
   SlashExecResponse
@@ -814,6 +815,78 @@ export function useSlashCommand(deps: SlashCommandDeps) {
                 : 'Session title cleared.'
             )
           } catch (err) {
+            renderSlashOutput(`error: ${err instanceof Error ? err.message : String(err)}`)
+          }
+        },
+        // /meeting <topic> starts a multi-seat meeting room on the gateway
+        // (tui_gateway/methods_meeting.py). The room runs off the request path;
+        // every seat streams message.* frames into this session as it speaks,
+        // and a meeting_conclusion card lands when the room converges. The RPC
+        // only acks the start — the live view is the seat messages themselves.
+        meeting: async ctx => {
+          const resolved = await withSlashOutput(ctx)
+
+          if (!resolved) {
+            return
+          }
+
+          const { render: renderSlashOutput, sessionId } = resolved
+          const topic = ctx.arg.trim()
+
+          if (!topic) {
+            renderSlashOutput('usage: /meeting <topic>')
+
+            return
+          }
+
+          try {
+            const result = await requestGateway<MeetingCreateResponse>('meeting.create', {
+              session_id: sessionId,
+              topic,
+              mode: 'light'
+            })
+
+            if (!result?.meeting_id) {
+              renderSlashOutput(`error: ${result?.status || 'meeting.create returned no meeting_id'}`)
+
+              return
+            }
+
+            const seats = (result.seats ?? [])
+              .map(seat => `• ${seat.name || seat.seat_id}${seat.role ? ` (${seat.role})` : ''}`)
+              .join('\n')
+            const budgetLine = (() => {
+              const b = result.budgets ?? {}
+              const parts: string[] = []
+
+              if (b.rounds) {
+                parts.push(`${b.rounds} rounds`)
+              }
+
+              if (b.seconds) {
+                parts.push(`${b.seconds}s`)
+              }
+
+              if (b.tokens) {
+                parts.push(`${b.tokens} tokens`)
+              }
+
+              return parts.length ? `Budget: ${parts.join(' · ')}` : ''
+            })()
+
+            renderSlashOutput(
+              [`Meeting started · ${result.topic || topic}`, seats, budgetLine].filter(Boolean).join('\n')
+            )
+          } catch (err) {
+            // Older gateways without meeting.create fall back to the slash
+            // worker's command.dispatch, mirroring the other RPC-backed
+            // commands' compatibility path.
+            if (isMissingRpcMethod(err)) {
+              await runExec(ctx)
+
+              return
+            }
+
             renderSlashOutput(`error: ${err instanceof Error ? err.message : String(err)}`)
           }
         },

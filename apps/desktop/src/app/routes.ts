@@ -18,6 +18,7 @@ export const CRON_ROUTE = '/cron'
 export const PROFILES_ROUTE = '/profiles'
 export const AGENTS_ROUTE = '/agents'
 export const STARMAP_ROUTE = '/starmap'
+export const MEETING_ROUTE = '/meetings'
 
 export type AppView =
   | 'agents'
@@ -30,6 +31,7 @@ export type AppView =
   // so the sidebar kept a session highlighted and the titlebar kept the
   // session-title dropdown while a plugin page was showing.
   | 'extension'
+  | 'meeting'
   | 'messaging'
   | 'profiles'
   | 'settings'
@@ -42,6 +44,7 @@ export type AppRouteId =
   | 'artifacts'
   | 'command-center'
   | 'cron'
+  | 'meeting'
   | 'messaging'
   | 'new'
   | 'profiles'
@@ -67,7 +70,8 @@ export const APP_ROUTES = [
   { id: 'cron', path: CRON_ROUTE, view: 'cron' },
   { id: 'profiles', path: PROFILES_ROUTE, view: 'profiles' },
   { id: 'agents', path: AGENTS_ROUTE, view: 'agents' },
-  { id: 'starmap', path: STARMAP_ROUTE, view: 'starmap' }
+  { id: 'starmap', path: STARMAP_ROUTE, view: 'starmap' },
+  { id: 'meeting', path: MEETING_ROUTE, view: 'meeting' }
 ] as const satisfies readonly AppRoute[]
 
 const APP_VIEW_BY_PATH = new Map<string, AppView>(APP_ROUTES.map(route => [route.path, route.view]))
@@ -185,11 +189,36 @@ export function sessionRoute(sessionId: string): string {
   return `${SESSION_ROUTE_PREFIX}${encodeURIComponent(sessionId)}`
 }
 
+/** A meeting room's workspace route (`/meetings/<id>`). */
+export function meetingRoute(meetingId: string): string {
+  return `${MEETING_ROUTE}/${encodeURIComponent(meetingId)}`
+}
+
+/** The meeting id of a `/meetings/<id>` pathname, or null for any other path. */
+export function routeMeetingId(pathname: string): string | null {
+  const path = routePathname(pathname)
+
+  if (!path.startsWith(`${MEETING_ROUTE}/`)) {
+    return null
+  }
+
+  const id = path.slice(MEETING_ROUTE.length + 1)
+
+  return id && !id.includes('/') ? decodeURIComponent(id) : null
+}
+
 export function appViewForPath(pathname: string): AppView {
   const path = routePathname(pathname)
 
   if (isNewChatRoute(path) || routeSessionId(path)) {
     return 'chat'
+  }
+
+  // `/meetings/<id>` is a per-meeting page under the reserved `/meetings`
+  // prefix — resolve it before the exact-map lookup so it never reads as a
+  // session or as plain chat.
+  if (path.startsWith(`${MEETING_ROUTE}/`)) {
+    return 'meeting'
   }
 
   if (isContributedPath(path)) {

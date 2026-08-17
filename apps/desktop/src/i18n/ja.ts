@@ -237,7 +237,8 @@ export const ja = defineLocale({
       archivedChats: 'アーカイブ済みチャット',
       about: '情報',
       billing: '請求',
-      notifications: '通知'
+      notifications: '通知',
+      meetings: 'ミーティング'
     },
     notifications: {
       title: '通知',
@@ -280,6 +281,29 @@ export const ja = defineLocale({
       completionSoundTitle: '完了サウンド',
       completionSoundDesc: 'エージェントのターン終了時に再生されます。プリセットを選んでここで試聴できます。',
       completionSoundPreview: '試聴'
+    },
+    meetings: {
+      title: 'ミーティング',
+      intro: '新しいミーティングルームの既定モデルと再利用できるシートテンプレート。',
+      modelTitle: '既定ミーティングモデル',
+      modelDesc:
+        'シートはまず元のセッションのモデル選択を引き継ぎます。セッションがモデルを持たない場合のみ、この既定値が使われます（config.yaml の meeting セクション）。',
+      provider: 'プロバイダー',
+      model: 'モデル',
+      inheritMain: 'メインモデルを引き継ぐ',
+      presetsTitle: '人物テンプレート',
+      presetsDesc:
+        '名前／役割／目標／モデルの再利用可能な組み合わせ。新規ミーティングダイアログで席にワンクリックで適用できます。',
+      presetName: '名前',
+      presetRole: '役割',
+      presetObjective: '目標',
+      presetModel: 'モデル',
+      addPreset: 'テンプレートを追加',
+      deletePreset: '削除',
+      deleteConfirm: 'このテンプレートを削除しますか？',
+      editPreset: '編集',
+      emptyPresets: 'テンプレートはまだありません。追加すると新規ミーティングで素早く席を埋められます。',
+      saveFailed: 'ミーティング設定の保存に失敗しました'
     },
     sections: {
       model: 'モデル',
@@ -1665,7 +1689,8 @@ export const ja = defineLocale({
       'new-session': '新しいセッション',
       skills: 'スキルとツール',
       messaging: 'メッセージング',
-      artifacts: 'アーティファクト'
+      artifacts: 'アーティファクト',
+      meeting: '会議'
     },
     searchAria: 'セッションを検索',
     searchPlaceholder: 'セッションを検索…',
@@ -1789,6 +1814,107 @@ export const ja = defineLocale({
       thisWeek: '今週',
       lastWeek: '先週',
       thisMonth: '今月'
+    }
+  },
+
+  meetings: {
+    sectionTitle: '会議',
+    create: '会議を作成',
+    noMeetings: 'まだ会議はありません',
+    emptyTitle: 'このウィンドウには会議がありません',
+    emptyHint: 'チャットから多席の会議室を開始すると、こことサイドバーに表示されます。',
+    openDraft: '会議を作成',
+    status: {
+      created: '準備中',
+      running: '進行中',
+      suspended: '一時停止',
+      converging: '収束中',
+      closed: '終了',
+      aborted: '中止',
+      interrupted: '中断'
+    },
+    from: source => `${source} より`,
+    standalone: '独立会議',
+    roundsSpent: (spent, cap) => (cap > 0 ? `ラウンド ${spent}/${cap}` : `ラウンド ${spent}`),
+    budget: {
+      roundsLabel: 'ラウンド上限',
+      secondsLabel: '時間上限(秒)',
+      tokensLabel: 'トークン上限'
+    },
+    room: {
+      speaker: '現在の発言者',
+      pause: '一時停止',
+      resume: '再開',
+      takeover: '引き継ぎ',
+      veto: '拒否',
+      monologue: '一問一答',
+      end: '会議を終了',
+      comingLater: '他の席が参加・発言するとここに表示されます',
+      queueNext: label => `次:${label}`,
+      pendingTurn: '待機中',
+      seatThinking: lines => (lines > 0 ? `${lines} 行の思考 — クリックで展開` : ''),
+      waitingTurn: '聴取中',
+      collapsedSeat: name => `${name} — 発言中`,
+      emptyTable: '円卓はまだ空です。会議が始まると席が埋まります。',
+      tabs: {
+        dialogue: '対話',
+        focus: '焦点',
+        playback: '再生'
+      },
+      focusHint: '未決事項と決定台帳がここに表示されます。',
+      playbackHint: '再生可能な会議タイムラインがここに表示されます。',
+      issueOpen: '進行中',
+      issueDecided: '決定済み',
+      issueDeferred: '保留中',
+      expandFullRecord: '全文記録を展開',
+      collapseFullRecord: '全文記録を閉じる',
+      fullRecord: '全文記録'
+    },
+    composer: {
+      placeholder: '会議に発言…',
+      interjectHint: '送信で次ターンへ発言。長押しか Alt+Enter で割り込み',
+      agree: '同意',
+      explore: '深掘り',
+      keyPoint: '要点にマーク',
+      reject: '拒否',
+      queued: 'キューに入りました',
+      interjectUnavailable: 'このゲートウェイでは割り込みを送信できません。'
+    },
+    draft: {
+      title: '新しい会議',
+      description: 'チャットに紐づく一回限りの会議室です。役割・予算・議題で進行が決まります。',
+      topicLabel: '議題',
+      topicPlaceholder: '何について話しますか？',
+      modeLabel: 'モード',
+      modeLight: 'クイック診断',
+      modeFull: 'フル会議',
+      seatsLabel: '席',
+      addSeat: '席を追加',
+      presetLabel: 'テンプレート',
+      presetPlaceholder: '人物テンプレートを選択…',
+      presetEmpty: 'テンプレートがありません — 設定 → ミーティングで追加できます',
+      presetAdd: '適用',
+      removeSeat: '削除',
+      nameRow: '名前',
+      roleLabel: '役割',
+      objectiveLabel: '目標',
+      modelLegacyHint: '席ごとのモデルは M1.1 でバックエンドに接続されます。当面はセッションのモデルを継承します。',
+      budgetLabel: '予算',
+      unbounded: '制限なし',
+      sourceLabel: '元のチャット',
+      sourceNone: 'チャットなし（独立会議）',
+      sourceEmpty: '利用可能なセッションがありません — 先にチャットを開いてください',
+      sourceMissing: 'このプロファイルにセッションがありません',
+      createButton: '会議を開始',
+      creating: '起動中…',
+      createFailed: '会議を開始できませんでした'
+    },
+    roles: {
+      facilitator: '進行役',
+      advocate: '提案者',
+      critic: '批判者',
+      expert: '専門家',
+      observer: '傍観者'
     }
   },
 

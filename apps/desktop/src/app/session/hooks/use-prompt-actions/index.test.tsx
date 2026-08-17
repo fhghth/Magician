@@ -284,6 +284,70 @@ describe('usePromptActions /title', () => {
     expect(requestGateway).toHaveBeenCalledWith('slash.exec', expect.objectContaining({ command: 'title' }))
   })
 
+  it('starts a meeting via the meeting.create RPC and prints the seats into the transcript', async () => {
+    const requestGateway = vi.fn(
+      async (method: string, params?: Record<string, unknown>) =>
+        (method === 'meeting.create'
+          ? {
+              meeting_id: 'mabc123',
+              topic: String(params?.topic ?? ''),
+              status: 'created',
+              seats: [
+                { seat_id: 'seat1', name: '协调者', role: 'facilitator' },
+                { seat_id: 'seat2', name: '提出者', role: 'advocate' }
+              ],
+              budgets: { rounds: 4, seconds: null, tokens: null }
+            }
+          : {}) as never
+    )
+
+    const seeds: Record<string, unknown>[] = []
+    let handle: HarnessHandle | null = null
+    await actRender(
+      <Harness
+        onReady={h => (handle = h)}
+        onSeedState={s => seeds.push(s)}
+        refreshSessions={async () => undefined}
+        requestGateway={requestGateway}
+      />
+    )
+
+    await handle!.submitText('/meeting E-bot review')
+
+    expect(requestGateway).toHaveBeenCalledWith('meeting.create', {
+      session_id: RUNTIME_SESSION_ID,
+      topic: 'E-bot review',
+      mode: 'light'
+    })
+    expect(requestGateway).not.toHaveBeenCalledWith('slash.exec', expect.anything())
+    // The seats + topic land as a system line in the transcript.
+    const renderedText = seeds
+      .flatMap(state => {
+        const messages = Array.isArray(state.messages)
+          ? (state.messages as Array<{ parts?: Array<{ text?: string }> }>)
+          : []
+
+        return messages.flatMap(message => (message.parts ?? []).map(part => part.text ?? ''))
+      })
+      .join('\n')
+    expect(renderedText).toContain('E-bot review')
+    expect(renderedText).toContain('协调者')
+    expect(renderedText).toContain('提出者')
+  })
+
+  it('shows usage when /meeting is run without a topic', async () => {
+    const requestGateway = vi.fn(async () => ({}) as never)
+
+    let handle: HarnessHandle | null = null
+    await actRender(
+      <Harness onReady={h => (handle = h)} refreshSessions={async () => undefined} requestGateway={requestGateway} />
+    )
+
+    await handle!.submitText('/meeting')
+
+    expect(requestGateway).not.toHaveBeenCalledWith('meeting.create', expect.anything())
+  })
+
   it('surfaces a rename error without touching the sidebar store', async () => {
     const refreshSessions = vi.fn(async () => undefined)
 

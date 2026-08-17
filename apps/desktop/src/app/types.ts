@@ -98,6 +98,24 @@ export interface SessionTitleResponse {
   session_key?: string
 }
 
+/** Response from the `meeting.create` RPC (tui_gateway/methods_meeting.py). */
+export interface MeetingCreateResponse {
+  meeting_id?: string
+  topic?: string
+  mode?: string
+  status?: string
+  seats?: Array<{
+    seat_id?: string
+    name?: string
+    role?: string
+  }>
+  budgets?: {
+    rounds?: number | null
+    seconds?: number | null
+    tokens?: number | null
+  }
+}
+
 export interface HandoffRequestResponse {
   queued?: boolean
   session_key?: string

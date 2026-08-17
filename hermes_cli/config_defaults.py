@@ -1726,6 +1726,18 @@ DEFAULT_CONFIG = {
         "subagent_auto_approve": False,
     },
 
+    # Meeting rooms — default model for meeting seats. The desktop Settings
+    # page is the UI editor for this block. Seats inherit the origin
+    # session's model pick first; only when the session has none does this
+    # block fall back in (per-seat/meeting arguments from meeting.create
+    # override both, once the M1.1 backend patch lands).
+    "meeting": {
+        "model": {
+            "provider": "",  # e.g. "openrouter" (empty = inherit session/global provider)
+            "default": "",   # e.g. "openrouter/anthropic/claude-sonnet-4.5" (empty = inherit session/global model)
+        },
+    },
+
     # Ephemeral prefill messages file — JSON list of {role, content} dicts
     # injected at the start of every API call for few-shot priming.
     # Never saved to sessions, logs, or trajectories.

@@ -525,6 +525,14 @@ export type TimelineDisplayMetadata =
       failed_count?: number
       duration_seconds?: number
     }
+  | {
+      meeting_id: string
+      origin_ref?: string
+      topic?: string
+      open_items?: number
+      decisions_count?: number
+      stats?: { turns?: number; tokens?: number }
+    }
   | { reactions: MessageReaction[] }
 
 /** One emoji reaction on a message. One per author, iOS-Tapback style. */

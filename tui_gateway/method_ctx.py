@@ -42,6 +42,41 @@ class HandlerRegistry:
         """Rebind pending handlers onto ``server``'s globals and register them."""
         g = vars(server)
         for name, fn in self._pending:
+            module = fn.__globals__
+            # Module-local helpers (methods_meeting.py's _int_or_none,
+            # _default_seat_specs, _run_meeting, ...) live in fn's own module
+            # globals and are NOT @method handlers, so install() only sees
+            # them through the handler's namespace. Two reborings are needed:
+            #
+            # 1. Rebind the module's local functions onto server.py's
+            #    namespace. They close over server globals at runtime (e.g.
+            #    the meeting driver's _emit / _sessions / _make_agent),
+            #    which their original module globals never contained.
+            #
+            # 2. Publish the module's remaining names (constants, module
+            #    state) onto server.py's namespace so anything the handler
+            #    touches resolves.
+            #
+            # Handlers and their helpers must NOT get a private copy of
+            # server.py's globals instead: `global X` write-through is
+            # load-bearing (paste.collapse's _paste_counter, reload.mcp's
+            # _mcp_reload_* are read back from server.py's namespace).
+            for helper, value in module.items():
+                if (
+                    type(value) is types.FunctionType
+                    and value.__module__ == module.get("__name__")
+                    and helper not in g
+                ):
+                    g[helper] = types.FunctionType(
+                        value.__code__,
+                        g,
+                        value.__name__,
+                        value.__defaults__,
+                        value.__closure__,
+                    )
+            for helper, value in module.items():
+                if helper != "__builtins__" and helper not in g:
+                    g[helper] = value
             real = types.FunctionType(
                 fn.__code__, g, fn.__name__, fn.__defaults__, fn.__closure__
             )

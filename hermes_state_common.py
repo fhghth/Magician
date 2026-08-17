@@ -338,6 +338,79 @@ CREATE TABLE IF NOT EXISTS async_delegations (
     delivery_claimed_at REAL
 );
 
+-- ── Meeting-room (roundtable) tables ─────────────────────────────────────
+-- See docs/design/meeting-room-dev-guide.md. meeting_events is Tier 0:
+-- append-only, never deleted; scheduling state, UI projection, replay, and
+-- audit all rebuild from the event stream. seq is monotonically increasing
+-- per meeting (replay depends on it) and is guaranteed by the DAO layer
+-- (agent/meeting/store.py), not by SQLite.
+CREATE TABLE IF NOT EXISTS meetings (
+    id TEXT PRIMARY KEY,
+    origin_ref TEXT,
+    topic TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    budget_rounds INTEGER,
+    budget_seconds INTEGER,
+    budget_tokens INTEGER,
+    spent_rounds INTEGER DEFAULT 0,
+    spent_tokens INTEGER DEFAULT 0,
+    delegation_profile_id TEXT,
+    project_id TEXT,
+    worktree_path TEXT,
+    created_at REAL,
+    closed_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS meeting_events (
+    id TEXT PRIMARY KEY,
+    meeting_id TEXT NOT NULL REFERENCES meetings(id),
+    seq INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    actor TEXT,
+    payload_json TEXT,
+    intent TEXT,
+    pre_state_ref TEXT,
+    created_at REAL,
+    UNIQUE(meeting_id, seq)
+);
+
+CREATE TABLE IF NOT EXISTS meeting_keyframes (
+    id TEXT PRIMARY KEY,
+    meeting_id TEXT NOT NULL,
+    source_msg_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    clearance TEXT NOT NULL,
+    source TEXT NOT NULL,
+    status TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meeting_ledger (
+    id TEXT PRIMARY KEY,
+    meeting_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    supersedes_id TEXT,
+    source_msg_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    signed_by TEXT,
+    created_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS meeting_claims (
+    id TEXT PRIMARY KEY,
+    msg_id TEXT NOT NULL,
+    claim_text TEXT NOT NULL,
+    class TEXT NOT NULL,
+    citation TEXT,
+    verify_status TEXT,
+    declared_by TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_events_seq ON meeting_events(meeting_id, seq);
+CREATE INDEX IF NOT EXISTS idx_meeting_keyframes_meeting ON meeting_keyframes(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_ledger_meeting ON meeting_ledger(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_claims_msg ON meeting_claims(msg_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_source ON sessions(source);
 CREATE INDEX IF NOT EXISTS idx_sessions_source_id ON sessions(source, id);
 CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id);

@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Settings2,
   Upload,
+  Users,
   Wrench,
   Zap
 } from '@/lib/icons'
@@ -38,6 +39,7 @@ import { SECTIONS } from './constants'
 import { GatewaySettings } from './gateway-settings'
 import { KeybindSettings } from './keybind-settings'
 import { KEYS_VIEWS, KeysSettings, type KeysView } from './keys-settings'
+import { MeetingSettings } from './meeting-settings'
 import { NotificationsSettings } from './notifications-settings'
 import { PluginsSettings } from './plugins-settings'
 import { PROVIDER_VIEWS, ProvidersSettings, type ProviderView } from './providers-settings'
@@ -54,6 +56,7 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'billing',
   'plugins',
   'sessions',
+  'meetings',
   'about'
 ]
 
@@ -251,6 +254,13 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
         onSelect: () => setActiveView('sessions')
       },
       {
+        active: activeView === 'meetings',
+        icon: Users,
+        id: 'meetings',
+        label: t.settings.nav.meetings,
+        onSelect: () => setActiveView('meetings')
+      },
+      {
         active: activeView === 'about',
         gapBefore: true,
         icon: Info,
@@ -330,6 +340,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             <BillingSettings />
           ) : activeView === 'plugins' ? (
             <PluginsSettings />
+          ) : activeView === 'meetings' ? (
+            <MeetingSettings />
           ) : (
             <SessionsSettings />
           )}

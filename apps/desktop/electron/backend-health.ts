@@ -154,7 +154,12 @@ export async function waitForHermesReady(baseUrl: string, options: HermesReadyOp
       // rejects the unknown path as unauthenticated instead of 404 and a
       // credential-free probe can never observe the 404. Timeouts, 5xx, 429,
       // and non-gate 401s keep polling health.
-      if (!useStatusFallback && (isMissingHealthEndpointError(error) || isGatedMissingHealthError(error))) {
+      if (
+        !useStatusFallback &&
+        (isMissingHealthEndpointError(error) ||
+          isGatedMissingHealthError(error) ||
+          (!probeIsCredentialed && isAuthRejectionError(error)))
+      ) {
         useStatusFallback = true
 
         continue

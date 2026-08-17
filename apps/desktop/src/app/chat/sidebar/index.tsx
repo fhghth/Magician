@@ -109,6 +109,7 @@ import {
 import type { SidebarNavItem } from '../../types'
 
 import { SidebarCronJobsSection } from './cron-jobs-section'
+import { MeetingSidebarSection } from './meetings-section'
 import { SidebarLoadMoreRow } from './load-more-row'
 import { orderByIds, reconcileOrderIds, resolveManualSessionOrderIds, sameIds } from './order'
 import { ProfileRail } from './profile-switcher'
@@ -169,6 +170,11 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     icon: props => <Codicon name="files" {...props} />,
     route: ARTIFACTS_ROUTE,
     keybindActionId: 'nav.artifacts'
+  },
+  {
+    id: 'meeting',
+    label: '',
+    icon: props => <Codicon name="organization" {...props} />
   }
 ]
 
@@ -1220,6 +1226,8 @@ export function ChatSidebar({
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <MeetingSidebarSection />
 
         {showSessionSections && (
           <div className="shrink-0 px-2 pb-1 pt-1">

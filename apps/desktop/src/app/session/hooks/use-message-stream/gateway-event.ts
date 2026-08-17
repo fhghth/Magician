@@ -60,6 +60,7 @@ import {
   setYoloActive
 } from '@/store/session'
 import { dropSessionState } from '@/store/session-states'
+import { applyMeetingEvent } from '@/store/meeting'
 import { pruneDelegateFallbackSubagents, pruneFinishedSessionSubagents, upsertSubagent } from '@/store/subagents'
 import { clearActiveSessionTodos } from '@/store/todos'
 import { recordToolDiff } from '@/store/tool-diffs'
@@ -74,7 +75,13 @@ import type { RpcEvent } from '@/types/hermes'
 import type { ClientSessionState } from '../../../types'
 import { finalizeInterruptedMessages } from '../use-prompt-actions/rewind'
 
-import { hasSessionInfoStatePatch, sessionInfoStatePatch, SUBAGENT_EVENT_TYPES, toTodoPayload } from './utils'
+import {
+  hasSessionInfoStatePatch,
+  sessionInfoStatePatch,
+  MEETING_EVENT_TYPES,
+  SUBAGENT_EVENT_TYPES,
+  toTodoPayload
+} from './utils'
 
 function firstBillingLine(text: string): string {
   return (text || '').split('\n')[0]?.trim() ?? ''
@@ -859,6 +866,16 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
             event.type === 'subagent.spawn_requested' || event.type === 'subagent.start',
             event.type
           )
+        }
+      } else if (MEETING_EVENT_TYPES.has(event.type)) {
+        // Meeting-room lifecycle/progress (agent/meeting). The backend drives
+        // the room inside its session and stamps these events with that
+        // session's id; project them onto the per-session meeting store so the
+        // roster / read-only turn stream / budget table render live. Meetings
+        // are background work like subagents, so the routing layer already
+        // dropped any unstamped one — attach only to the owning session.
+        if (sessionId && payload) {
+          applyMeetingEvent(sessionId, event.type, payload as Record<string, unknown>)
         }
       } else if (event.type === 'clarify.request') {
         // Surface the clarify tool's overlay. The Python side is blocked on

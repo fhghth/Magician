@@ -393,7 +393,47 @@ function timelineDisplayContent(message: SessionMessage, content: string): strin
       : `${count} background agent${count === 1 ? '' : 's'} finished`
   }
 
+  if (message.display_kind === 'meeting_conclusion') {
+    const stats = timelineMeetingStats(message.display_metadata)
+    const topic = timelineMeetingTopic(message.display_metadata)
+
+    const head = stats?.turns === undefined ? null : `${stats.turns} turns · ${stats.tokens} tokens`
+
+    const label = [topic && `Meeting: ${topic}`, head].filter(Boolean).join(' · ') || 'Meeting concluded'
+
+    // Unlike the opaque delegation payload, this message's content IS the
+    // minutes the meeting produced — keep the body, styled as a card.
+    return content ? `${label}\n\n${content}` : label
+  }
+
   return content
+}
+
+/** Stats projection from a `meeting_conclusion` card's display_metadata. */
+function timelineMeetingStats(
+  metadata: SessionMessage['display_metadata']
+): { tokens: number; turns: number } | undefined {
+  const stats = parseDisplayMetadata(metadata)?.stats
+
+  if (!stats || typeof stats !== 'object') {
+    return undefined
+  }
+
+  const record = stats as Record<string, unknown>
+  const turns = record.turns
+  const tokens = record.tokens
+
+  if (typeof turns !== 'number' || typeof tokens !== 'number') {
+    return undefined
+  }
+
+  return { tokens, turns }
+}
+
+function timelineMeetingTopic(metadata: SessionMessage['display_metadata']): string | undefined {
+  const topic = parseDisplayMetadata(metadata)?.topic
+
+  return typeof topic === 'string' && topic.trim() ? topic.trim() : undefined
 }
 
 const STREAM_PART: Record<'reasoning' | 'text', (text: string) => ChatMessagePart> = {
@@ -986,7 +1026,8 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     const displayRole =
       message.display_kind === 'model_switch' ||
       message.display_kind === 'async_delegation_complete' ||
-      message.display_kind === 'auto_continue'
+      message.display_kind === 'auto_continue' ||
+      message.display_kind === 'meeting_conclusion'
         ? 'system'
         : message.role
 

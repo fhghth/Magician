@@ -8,6 +8,26 @@ describe('gateway event routing', () => {
     expect(gatewayEventRequiresSessionId('subagent.start')).toBe(true)
   })
 
+  it('drops unstamped meeting events too — background room work, not the focused chat', () => {
+    expect(gatewayEventRequiresSessionId('meeting.started')).toBe(true)
+    expect(gatewayEventRequiresSessionId('meeting.turn.complete')).toBe(true)
+    expect(gatewayEventRequiresSessionId('meeting.budget.update')).toBe(true)
+    expect(gatewayEventRequiresSessionId('meeting.converging')).toBe(true)
+    expect(gatewayEventRequiresSessionId('meeting.minutes')).toBe(true)
+    expect(gatewayEventRequiresSessionId('meeting.conclusion')).toBe(true)
+  })
+
+  it('routes a stamped meeting event to the session that owns the room', () => {
+    const routed = resolveGatewayEventSessionId({
+      activeSessionId: 'session-b',
+      eventType: 'meeting.conclusion',
+      explicitSessionId: 'session-a',
+      unscopedStreamSessionId: null
+    })
+
+    expect(routed).toEqual({ drop: false, nextUnscopedStreamSessionId: null, sessionId: 'session-a' })
+  })
+
   it('attributes unscoped foreground turn events to the active chat', () => {
     // These must NOT be dropped when unscoped — they are the focused turn's own
     // output, and dropping them loses the live response until a refetch (#42178).

@@ -175,6 +175,14 @@ describe('desktop slash command curation', () => {
     expect(desktopSlashUnavailableMessage('/journey')).toBeNull()
   })
 
+  it('routes /meeting to the meeting action with a free-text topic arg', () => {
+    expect(resolveDesktopCommand('/meeting')?.surface).toEqual({ kind: 'action', action: 'meeting' })
+    expect(isDesktopSlashCommand('/meeting')).toBe(true)
+    expect(isDesktopSlashSuggestion('/meeting')).toBe(true)
+    expect(desktopSlashUnavailableMessage('/meeting')).toBeNull()
+    expect(desktopSlashCommandArgumentMode('/meeting')).toBe('text')
+  })
+
   it('allows aliases to execute without cluttering the popover', () => {
     expect(isDesktopSlashSuggestion('/reset')).toBe(false)
     expect(isDesktopSlashCommand('/reset')).toBe(true)

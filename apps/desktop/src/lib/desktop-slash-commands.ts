@@ -51,6 +51,7 @@ export type DesktopActionId =
   | 'hatch'
   | 'help'
   | 'journey'
+  | 'meeting'
   | 'new'
   | 'pet'
   | 'profile'
@@ -201,6 +202,12 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
     description: 'Open the memory graph — skills + memories over time',
     aliases: ['/learning', '/memory-graph'],
     surface: action('journey')
+  },
+  {
+    name: '/meeting',
+    description: 'Start a multi-seat meeting in this chat [topic]',
+    surface: action('meeting'),
+    argumentMode: 'text'
   },
 
   // Overlay pickers

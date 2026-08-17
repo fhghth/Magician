@@ -303,6 +303,7 @@ export interface Translations {
       billing: string
       notifications: string
       plugins: string
+      meetings: string
     }
     plugins: {
       title: string
@@ -335,6 +336,27 @@ export interface Translations {
       completionSoundTitle: string
       completionSoundDesc: string
       completionSoundPreview: string
+    }
+    meetings: {
+      title: string
+      intro: string
+      modelTitle: string
+      modelDesc: string
+      provider: string
+      model: string
+      inheritMain: string
+      presetsTitle: string
+      presetsDesc: string
+      presetName: string
+      presetRole: string
+      presetObjective: string
+      presetModel: string
+      addPreset: string
+      deletePreset: string
+      deleteConfirm: string
+      editPreset: string
+      emptyPresets: string
+      saveFailed: string
     }
     sections: Record<string, string>
     searchPlaceholder: Record<'about' | 'config' | 'gateway' | 'keys' | 'mcp' | 'sessions', string>
@@ -1651,6 +1673,93 @@ export interface Translations {
       lastWeek: string
       thisMonth: string
     }
+  }
+
+  meetings: {
+    sectionTitle: string
+    create: string
+    noMeetings: string
+    emptyTitle: string
+    emptyHint: string
+    openDraft: string
+    status: Record<'created' | 'running' | 'suspended' | 'converging' | 'closed' | 'aborted' | 'interrupted', string>
+    from: (source: string) => string
+    standalone: string
+    roundsSpent: (spent: number, cap: number) => string
+    budget: {
+      roundsLabel: string
+      secondsLabel: string
+      tokensLabel: string
+    }
+    room: {
+      speaker: string
+      pause: string
+      resume: string
+      takeover: string
+      veto: string
+      monologue: string
+      end: string
+      comingLater: string
+      queueNext: (label: string) => string
+      pendingTurn: string
+      seatThinking: (lines: number) => string
+      waitingTurn: string
+      collapsedSeat: (name: string) => string
+      emptyTable: string
+      tabs: {
+        dialogue: string
+        focus: string
+        playback: string
+      }
+      focusHint: string
+      playbackHint: string
+      issueOpen: string
+      issueDecided: string
+      issueDeferred: string
+      expandFullRecord: string
+      collapseFullRecord: string
+      fullRecord: string
+    }
+    composer: {
+      placeholder: string
+      interjectHint: string
+      agree: string
+      explore: string
+      keyPoint: string
+      reject: string
+      queued: string
+      interjectUnavailable: string
+    }
+    draft: {
+      title: string
+      description: string
+      topicLabel: string
+      topicPlaceholder: string
+      modeLabel: string
+      modeLight: string
+      modeFull: string
+      seatsLabel: string
+      addSeat: string
+      presetLabel: string
+      presetPlaceholder: string
+      presetEmpty: string
+      presetAdd: string
+      removeSeat: string
+      nameRow: string
+      roleLabel: string
+      objectiveLabel: string
+      modelLegacyHint: string
+      budgetLabel: string
+      unbounded: string
+      sourceLabel: string
+      sourceNone: string
+      sourceEmpty: string
+      sourceMissing: string
+      createButton: string
+      creating: string
+      createFailed: string
+    }
+    roles: Record<'facilitator' | 'advocate' | 'critic' | 'expert' | 'observer', string>
   }
 
   composer: {

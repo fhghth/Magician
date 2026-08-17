@@ -44,16 +44,17 @@ const UNSCOPED_STREAM_END_EVENT_TYPES = new Set(['error', 'message.complete'])
  * Whether an unscoped event (no `session_id`) must be dropped rather than
  * attributed to the focused chat.
  *
- * Only `subagent.*` qualifies: it describes background/async work that must
- * never attach to whichever chat happens to be focused. Every other scoped
- * event — message/reasoning/thinking/tool/status/prompt — is, when unscoped,
- * the active turn's own output. The gateway always stamps a *background*
- * session's events with that session's id, so a missing id can only mean "the
- * focused turn". #42178 dropped those too, which silently swallowed the live
- * answer; it then reappeared only after a transcript refetch (manual refresh).
+ * `subagent.*` and `meeting.*` qualify: they describe background/async work
+ * that must never attach to whichever chat happens to be focused. Every other
+ * scoped event — message/reasoning/thinking/tool/status/prompt — is, when
+ * unscoped, the active turn's own output. The gateway always stamps a
+ * *background* session's events with that session's id, so a missing id can
+ * only mean "the focused turn". #42178 dropped those too, which silently
+ * swallowed the live answer; it then reappeared only after a transcript
+ * refetch (manual refresh).
  */
 export function gatewayEventRequiresSessionId(eventType: string | undefined): boolean {
-  return eventType?.startsWith('subagent.') ?? false
+  return eventType?.startsWith('subagent.') || eventType?.startsWith('meeting.') || false
 }
 
 export interface GatewayEventSessionRouteInput {

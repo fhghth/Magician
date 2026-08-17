@@ -314,6 +314,8 @@ describe('toChatMessages', () => {
 
   // A backend older than this app serves display_metadata as unparsed JSON
   // text. Indexing into that string used to throw and fail the whole resume.
+  // A backend older than this app serves display_metadata as unparsed JSON
+  // text. Indexing into that string used to throw and fail the whole resume.
   it.each([
     ['an object', { delegation_id: 'deleg_1', task_count: 2 }, '2 background agents finished'],
     ['JSON text', JSON.stringify({ delegation_id: 'deleg_1', task_count: 1 }), '1 background agent finished'],
@@ -334,6 +336,30 @@ describe('toChatMessages', () => {
 
     expect(read).not.toThrow()
     expect(chatMessageText(read()[0])).toBe(expected)
+  })
+
+  it('renders a meeting conclusion as a system card with the minutes as its body', () => {
+    const [card] = toChatMessages([
+      {
+        role: 'user',
+        content: '会议纪要 — 会诊股\n[s0] 观点A\n[s1] 观点B\n',
+        display_kind: 'meeting_conclusion',
+        display_metadata: {
+          meeting_id: 'm1',
+          origin_ref: 'thread:s1',
+          topic: '会诊股',
+          open_items: 1,
+          decisions_count: 2,
+          stats: { turns: 3, tokens: 12 }
+        },
+        timestamp: 1
+      }
+    ])
+
+    expect(card?.role).toBe('system')
+    expect(chatMessageText(card!)).toContain('Meeting: 会诊股')
+    expect(chatMessageText(card!)).toContain('3 turns · 12 tokens')
+    expect(chatMessageText(card!)).toContain('会议纪要 — 会诊股')
   })
 })
 
