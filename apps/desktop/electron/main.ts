@@ -3903,6 +3903,23 @@ function isPackagedInstallPath(dir) {
   })
 }
 
+// The designated default workspace: `{HERMES_HOME}/defaultWorkspace`. New
+// sessions start here (and the picker opens here) until the user pins an
+// explicit "Default project directory". Created on demand so the resolver and
+// picker always have a real, existing target.
+function defaultWorkspaceDir() {
+  const target = path.join(HERMES_HOME, 'defaultWorkspace')
+
+  try {
+    fs.mkdirSync(target, { recursive: true })
+  } catch {
+    // Non-fatal — if creation fails the candidate below just won't resolve and
+    // the resolver falls through to the home directory.
+  }
+
+  return target
+}
+
 function resolveHermesCwd() {
   // In a packaged build, `process.cwd()` resolves to the install root (e.g.
   // `…/win-unpacked` on Windows or `/Applications/Hermes.app/Contents/...`
@@ -3910,10 +3927,12 @@ function resolveHermesCwd() {
   // and bewilder users when "where did my files go?" is the install dir.
   // The user-configurable default project directory wins over everything,
   // followed by env hints (only honored when packaged if they point at a
-  // real directory), then the home dir.
+  // real directory), then the default workspace, then the process directory
+  // chain, then the home dir.
   const candidates = [
     readDefaultProjectDir(),
     process.env.HERMES_DESKTOP_CWD,
+    defaultWorkspaceDir(),
     IS_PACKAGED ? null : process.env.INIT_CWD,
     IS_PACKAGED ? null : process.cwd(),
     !IS_PACKAGED ? SOURCE_REPO_ROOT : null,
@@ -11302,7 +11321,7 @@ ipcMain.handle('hermes:openPreviewInBrowser', async (_event, url) => {
 // session spawn (no app restart needed).
 ipcMain.handle('hermes:setting:defaultProjectDir:get', async () => ({
   dir: readDefaultProjectDir(),
-  defaultLabel: app.getPath('home'),
+  defaultLabel: defaultWorkspaceDir(),
   resolvedCwd: resolveHermesCwd()
 }))
 
@@ -11328,7 +11347,7 @@ ipcMain.handle('hermes:setting:defaultProjectDir:pick', async () => {
   const result = await dialog.showOpenDialog({
     title: 'Choose default project directory',
     properties: ['openDirectory', 'createDirectory'],
-    defaultPath: readDefaultProjectDir() || app.getPath('home')
+    defaultPath: readDefaultProjectDir() || defaultWorkspaceDir()
   })
 
   if (result.canceled || result.filePaths.length === 0) {
