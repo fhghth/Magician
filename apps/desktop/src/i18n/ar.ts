@@ -2225,7 +2225,14 @@ export const ar = defineLocale({
       openModelPicker: 'فتح اختيار النموذج',
       modelPinned: 'النموذج مثبت',
       modelTitle: (provider, model) => `${provider}: ${model}`,
-      providerModelTitle: (provider, model) => `${provider}: ${model}`
+      providerModelTitle: (provider, model) => `${provider}: ${model}`,
+      presets: {
+        ariaLabel: name => `وضع الوكيل: ${name}`,
+        applyFailed: 'تعذر تبديل وضع الوكيل',
+        none: 'لا يوجد وضع',
+        openMenu: 'تبديل وضع الوكيل',
+        title: 'وضع الوكيل'
+      }
     }
   },
   rightSidebar: {

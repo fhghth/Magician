@@ -340,6 +340,7 @@ export const en: Translations = {
       providerAccounts: 'Accounts',
       providerApiKeys: 'API keys',
       providerCustomEndpoints: 'Custom Endpoints',
+      providerLocalModels: 'Local Models',
       gateway: 'Gateway',
       apiKeys: 'Tools & Keys',
       keybinds: 'Keyboard Shortcuts',
@@ -892,6 +893,59 @@ export const en: Translations = {
         description: 'Point Hermes at any OpenAI-compatible endpoint (Zyphra, vLLM, llama.cpp, Ollama, etc).'
       },
       loading: 'Loading providers...'
+    },
+    localModels: {
+      sectionTitle: 'Local Models',
+      runtimeTitle: 'Ollama runtime',
+      runtimeDesc:
+        'Hermes installs and manages a private Ollama server for local models. Nothing is shared with Ollama.com.',
+      notInstalled: 'Ollama is not installed yet.',
+      version: v => `Ollama ${v}`,
+      running: 'Running',
+      stopped: 'Stopped',
+      managed: 'managed by Hermes',
+      install: 'Install Ollama',
+      installing: 'Installing…',
+      installProgress: (stage, percent) => `${stage} — ${Math.round(percent)}%`,
+      start: 'Start server',
+      starting: 'Starting…',
+      stop: 'Stop server',
+      stopping: 'Stopping…',
+      modelsTitle: 'Installed models',
+      modelsDesc:
+        'Pull a model from Ollama.com or import a GGUF file. The first model you activate becomes the main model.',
+      emptyTitle: 'No local models',
+      emptyDesc: 'Pull or import a model below to run it locally.',
+      thinking: 'Thinking',
+      thinkingDesc: 'Let this model reason before answering.',
+      capTools: 'Tools',
+      capVision: 'Vision',
+      activate: 'Use',
+      active: 'Active',
+      remove: 'Remove model',
+      removeConfirm: name => `Remove local model ${name}? Its files are deleted from disk.`,
+      pullTitle: 'Pull from Ollama.com',
+      pullDesc: 'Download a model by tag, e.g. qwen3:8b or llama3.2:3b.',
+      tagPlaceholder: 'model:tag',
+      pull: 'Pull',
+      pulling: 'Pulling…',
+      pullProgress: (status, percent) => `${status} — ${Math.round(percent)}%`,
+      ggufTitle: 'Import a GGUF file',
+      ggufDesc: 'Pick a model file from your computer (e.g. .gguf or .safetensors).',
+      chooseFile: 'Choose file…',
+      namePlaceholder: 'Model name (optional)',
+      importFile: 'Import file',
+      importing: 'Importing…',
+      urlTitle: 'Import from URL',
+      urlDesc: 'Download a GGUF directly from Hugging Face or GitHub.',
+      urlPlaceholder: 'https://huggingface.co/…',
+      importUrl: 'Import from URL',
+      createTitle: 'Create from Modelfile',
+      createDesc: 'Advanced: build a custom model from a Modelfile definition.',
+      modelfilePlaceholder: 'FROM llama3.2:3b\nSYSTEM You are a helpful assistant.',
+      create: 'Create model',
+      creating: 'Creating…',
+      cancel: 'Cancel'
     },
     sessions: {
       loading: 'Loading archived sessions…',
@@ -2502,7 +2556,11 @@ export const en: Translations = {
     free: 'Free',
     freeTier: 'Free tier',
     priceTitle: 'Input / Output price per million tokens',
-    wasPrice: 'was'
+    wasPrice: 'was',
+    pull: tag => `Pull ${tag} from Ollama.com`,
+    pulling: tag => `Pulling ${tag}…`,
+    pullFailed: tag => `Could not pull ${tag}`,
+    pullDone: tag => `${tag} is ready to use`
   },
 
   modelVisibility: {
@@ -2645,7 +2703,14 @@ export const en: Translations = {
       openModelPicker: 'Open model picker',
       modelPinned: 'pinned by you; new chats use this instead of the Settings default',
       modelTitle: (provider, model) => `Model · ${provider}: ${model}`,
-      providerModelTitle: (provider, model) => `${provider} · ${model}`
+      providerModelTitle: (provider, model) => `${provider} · ${model}`,
+      presets: {
+        ariaLabel: name => `Agent mode: ${name}`,
+        applyFailed: 'Could not switch agent mode',
+        none: 'no mode',
+        openMenu: 'Switch agent mode',
+        title: 'Agent mode'
+      }
     }
   },
 

@@ -228,6 +228,7 @@ export const ja = defineLocale({
       providerAccounts: 'アカウント',
       providerApiKeys: 'API キー',
       providerCustomEndpoints: 'カスタムエンドポイント',
+      providerLocalModels: 'ローカルモデル',
       gateway: 'ゲートウェイ',
       apiKeys: 'ツールとキー',
       keybinds: 'キーボードショートカット',
@@ -928,6 +929,59 @@ export const ja = defineLocale({
         description: 'OpenAI 互換のエンドポイント（Zyphra、vLLM、llama.cpp、Ollama など）を指定します。'
       },
       loading: 'プロバイダーを読み込み中...'
+    },
+    localModels: {
+      sectionTitle: 'ローカルモデル',
+      runtimeTitle: 'Ollama ランタイム',
+      runtimeDesc:
+        'Hermes がプライベートな Ollama サーバーをインストール・管理します。データが Ollama.com に送信されることはありません。',
+      notInstalled: 'Ollama はまだインストールされていません。',
+      version: v => `Ollama ${v}`,
+      running: '実行中',
+      stopped: '停止中',
+      managed: 'Hermes が管理',
+      install: 'Ollama をインストール',
+      installing: 'インストール中…',
+      installProgress: (stage, percent) => `${stage} — ${Math.round(percent)}%`,
+      start: 'サーバーを起動',
+      starting: '起動中…',
+      stop: 'サーバーを停止',
+      stopping: '停止中…',
+      modelsTitle: 'インストール済みモデル',
+      modelsDesc:
+        'Ollama.com からモデルをプルするか、GGUF ファイルをインポートします。最初にアクティブ化したモデルがメインモデルになります。',
+      emptyTitle: 'ローカルモデルがありません',
+      emptyDesc: '下の欄からモデルをプルまたはインポートすると、ローカルで実行できます。',
+      thinking: '思考モード',
+      thinkingDesc: '回答する前にモデルに推論させます。',
+      capTools: 'ツール',
+      capVision: 'ビジョン',
+      activate: '使用',
+      active: '使用中',
+      remove: 'モデルを削除',
+      removeConfirm: name => `ローカルモデル ${name} を削除しますか？ファイルはディスクから削除されます。`,
+      pullTitle: 'Ollama.com からプル',
+      pullDesc: 'タグでモデルをダウンロードします（例: qwen3:8b、llama3.2:3b）。',
+      tagPlaceholder: 'model:tag',
+      pull: 'プル',
+      pulling: 'プル中…',
+      pullProgress: (status, percent) => `${status} — ${Math.round(percent)}%`,
+      ggufTitle: 'GGUF ファイルをインポート',
+      ggufDesc: 'コンピューターからモデルファイルを選択します（.gguf や .safetensors など）。',
+      chooseFile: 'ファイルを選択…',
+      namePlaceholder: 'モデル名（任意）',
+      importFile: 'ファイルをインポート',
+      importing: 'インポート中…',
+      urlTitle: 'URL からインポート',
+      urlDesc: 'Hugging Face または GitHub から GGUF を直接ダウンロードします。',
+      urlPlaceholder: 'https://huggingface.co/…',
+      importUrl: 'URL からインポート',
+      createTitle: 'Modelfile から作成',
+      createDesc: '上級者向け: Modelfile 定義からカスタムモデルを作成します。',
+      modelfilePlaceholder: 'FROM llama3.2:3b\nSYSTEM あなたは親切なアシスタントです。',
+      create: 'モデルを作成',
+      creating: '作成中…',
+      cancel: 'キャンセル'
     },
     sessions: {
       loading: 'アーカイブ済みセッションを読み込み中…',
@@ -2344,7 +2398,11 @@ export const ja = defineLocale({
     free: '無料',
     freeTier: '無料プラン',
     priceTitle: '100 万トークンあたりの入力/出力価格',
-    wasPrice: '旧価格'
+    wasPrice: '旧価格',
+    pull: tag => `Ollama.com から ${tag} をプル`,
+    pulling: tag => `${tag} をプル中…`,
+    pullFailed: tag => `${tag} をプルできませんでした`,
+    pullDone: tag => `${tag} を使用できます`
   },
 
   modelVisibility: {
@@ -2474,7 +2532,14 @@ export const ja = defineLocale({
       openModelPicker: 'モデルピッカーを開く',
       modelPinned: '手動で固定中 — 新しいチャットは設定のデフォルトではなくこのモデルを使用します',
       modelTitle: (provider, model) => `モデル · ${provider}: ${model}`,
-      providerModelTitle: (provider, model) => `${provider} · ${model}`
+      providerModelTitle: (provider, model) => `${provider} · ${model}`,
+      presets: {
+        ariaLabel: name => `エージェントモード：${name}`,
+        applyFailed: 'エージェントモードを切り替えられませんでした',
+        none: 'モードなし',
+        openMenu: 'エージェントモードを切り替え',
+        title: 'エージェントモード'
+      }
     }
   },
 

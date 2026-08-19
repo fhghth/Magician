@@ -331,6 +331,7 @@ export const zh: Translations = {
       providerAccounts: '账号',
       providerApiKeys: 'API 密钥',
       providerCustomEndpoints: '自定义端点',
+      providerLocalModels: '本地模型',
       gateway: '网关',
       apiKeys: '工具与密钥',
       keybinds: '键盘快捷键',
@@ -1094,6 +1095,57 @@ export const zh: Translations = {
         description: '将 Hermes 指向任意 OpenAI 兼容端点（Zyphra、vLLM、llama.cpp、Ollama 等）。'
       },
       loading: '正在加载提供方...'
+    },
+    localModels: {
+      sectionTitle: '本地模型',
+      runtimeTitle: 'Ollama 运行时',
+      runtimeDesc: 'Hermes 会安装并管理一个私有的 Ollama 服务器来运行本地模型，数据不会上传到 Ollama.com。',
+      notInstalled: '尚未安装 Ollama。',
+      version: v => `Ollama ${v}`,
+      running: '运行中',
+      stopped: '已停止',
+      managed: '由 Hermes 管理',
+      install: '安装 Ollama',
+      installing: '正在安装…',
+      installProgress: (stage, percent) => `${stage} — ${Math.round(percent)}%`,
+      start: '启动服务器',
+      starting: '正在启动…',
+      stop: '停止服务器',
+      stopping: '正在停止…',
+      modelsTitle: '已安装的模型',
+      modelsDesc: '从 Ollama.com 拉取模型，或导入 GGUF 文件。激活的第一个模型会成为主模型。',
+      emptyTitle: '暂无本地模型',
+      emptyDesc: '从下方拉取或导入一个模型即可在本地运行。',
+      thinking: '思考模式',
+      thinkingDesc: '让模型在回答前先进行推理。',
+      capTools: '工具调用',
+      capVision: '视觉',
+      activate: '使用',
+      active: '当前使用',
+      remove: '删除模型',
+      removeConfirm: name => `删除本地模型 ${name}？其文件会从磁盘上移除。`,
+      pullTitle: '从 Ollama.com 拉取',
+      pullDesc: '按标签下载模型，例如 qwen3:8b 或 llama3.2:3b。',
+      tagPlaceholder: 'model:tag',
+      pull: '拉取',
+      pulling: '正在拉取…',
+      pullProgress: (status, percent) => `${status} — ${Math.round(percent)}%`,
+      ggufTitle: '导入 GGUF 文件',
+      ggufDesc: '从电脑中选择模型文件（如 .gguf 或 .safetensors）。',
+      chooseFile: '选择文件…',
+      namePlaceholder: '模型名称（可选）',
+      importFile: '导入文件',
+      importing: '正在导入…',
+      urlTitle: '从 URL 导入',
+      urlDesc: '直接从 Hugging Face 或 GitHub 下载 GGUF 文件。',
+      urlPlaceholder: 'https://huggingface.co/…',
+      importUrl: '从 URL 导入',
+      createTitle: '从 Modelfile 创建',
+      createDesc: '高级：用 Modelfile 定义构建自定义模型。',
+      modelfilePlaceholder: 'FROM llama3.2:3b\nSYSTEM 你是一个乐于助人的助手。',
+      create: '创建模型',
+      creating: '正在创建…',
+      cancel: '取消'
     },
     sessions: {
       loading: '正在加载已归档会话…',
@@ -2682,7 +2734,11 @@ export const zh: Translations = {
     free: '免费',
     freeTier: '免费层',
     priceTitle: '每百万 token 的输入/输出价格',
-    wasPrice: '原价'
+    wasPrice: '原价',
+    pull: tag => `从 Ollama.com 拉取 ${tag}`,
+    pulling: tag => `正在拉取 ${tag}…`,
+    pullFailed: tag => `无法拉取 ${tag}`,
+    pullDone: tag => `${tag} 已就绪可用`
   },
 
   modelVisibility: {
@@ -2825,7 +2881,14 @@ export const zh: Translations = {
       openModelPicker: '打开模型选择器',
       modelPinned: '已由你固定；新对话将使用此模型而非“设置”中的默认模型',
       modelTitle: (provider, model) => `模型 · ${provider}: ${model}`,
-      providerModelTitle: (provider, model) => `${provider} · ${model}`
+      providerModelTitle: (provider, model) => `${provider} · ${model}`,
+      presets: {
+        ariaLabel: name => `代理模式：${name}`,
+        applyFailed: '切换代理模式失败',
+        none: '无模式',
+        openMenu: '切换代理模式',
+        title: '代理模式'
+      }
     }
   },
 

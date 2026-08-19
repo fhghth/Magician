@@ -292,6 +292,7 @@ export interface Translations {
       providerAccounts: string
       providerApiKeys: string
       providerCustomEndpoints: string
+      providerLocalModels: string
       gateway: string
       apiKeys: string
       keybinds: string
@@ -767,6 +768,57 @@ export interface Translations {
         description: string
       }
       loading: string
+    }
+    localModels: {
+      sectionTitle: string
+      runtimeTitle: string
+      runtimeDesc: string
+      notInstalled: string
+      version: (v: string) => string
+      running: string
+      stopped: string
+      managed: string
+      install: string
+      installing: string
+      installProgress: (stage: string, percent: number) => string
+      start: string
+      starting: string
+      stop: string
+      stopping: string
+      modelsTitle: string
+      modelsDesc: string
+      emptyTitle: string
+      emptyDesc: string
+      thinking: string
+      thinkingDesc: string
+      capTools: string
+      capVision: string
+      activate: string
+      active: string
+      remove: string
+      removeConfirm: (name: string) => string
+      pullTitle: string
+      pullDesc: string
+      tagPlaceholder: string
+      pull: string
+      pulling: string
+      pullProgress: (status: string, percent: number) => string
+      ggufTitle: string
+      ggufDesc: string
+      chooseFile: string
+      namePlaceholder: string
+      importFile: string
+      importing: string
+      urlTitle: string
+      urlDesc: string
+      urlPlaceholder: string
+      importUrl: string
+      createTitle: string
+      createDesc: string
+      modelfilePlaceholder: string
+      create: string
+      creating: string
+      cancel: string
     }
     sessions: {
       loading: string
@@ -2089,6 +2141,10 @@ export interface Translations {
     freeTier: string
     priceTitle: string
     wasPrice: string
+    pull: (tag: string) => string
+    pulling: (tag: string) => string
+    pullFailed: (tag: string) => string
+    pullDone: (tag: string) => string
   }
 
   modelVisibility: {
@@ -2232,6 +2288,13 @@ export interface Translations {
       modelPinned: string
       modelTitle: (provider: string, model: string) => string
       providerModelTitle: (provider: string, model: string) => string
+      presets: {
+        ariaLabel: (name: string) => string
+        applyFailed: string
+        none: string
+        openMenu: string
+        title: string
+      }
     }
   }
 
