@@ -921,4 +921,46 @@ class TestReasoningEffortDefaults:
         assert kwargs["reasoning"]["effort"] == "medium"
 
 
+# ── Ollama tools degradation tests ───────────────────────────────────────────
+
+class TestOllamaToolsDegradation:
+    """Ollama models without tool-calling must not receive the tools array.
+
+    Regression for: HTTP 400 "registry.ollama.ai/library/Furina:latest
+    does not support tools" when chatting with a roleplay model that lacks
+    function calling. The /api/show capabilities probe decides, and the
+    verdict is cached per (model, base_url).
+    """
+
+    def test_drops_tools_when_model_lacks_tool_capability(self, monkeypatch):
+        agent = _make_agent(monkeypatch, "ollama", base_url="http://localhost:11434/v1",
+                            model="Furina:latest")
+        with patch("agent.model_metadata.query_ollama_supports_tools", return_value=False):
+            kwargs = agent._build_api_kwargs([{"role": "user", "content": "hi"}])
+        assert "tools" not in kwargs
+
+    def test_keeps_tools_when_model_supports_tools(self, monkeypatch):
+        agent = _make_agent(monkeypatch, "ollama", base_url="http://localhost:11434/v1",
+                            model="qwen3:8b")
+        with patch("agent.model_metadata.query_ollama_supports_tools", return_value=True):
+            kwargs = agent._build_api_kwargs([{"role": "user", "content": "hi"}])
+        assert kwargs.get("tools")
+
+    def test_probe_result_cached_per_model(self, monkeypatch):
+        agent = _make_agent(monkeypatch, "ollama", base_url="http://localhost:11434/v1",
+                            model="Furina:latest")
+        with patch("agent.model_metadata.query_ollama_supports_tools", return_value=False) as probe:
+            agent._build_api_kwargs([{"role": "user", "content": "hi"}])
+            agent._build_api_kwargs([{"role": "user", "content": "hi"}])
+        assert probe.call_count == 1
+
+    def test_unknown_probe_keeps_tools(self, monkeypatch):
+        """None (unreachable / not Ollama / pre-capabilities) → assume tools OK."""
+        agent = _make_agent(monkeypatch, "ollama", base_url="http://localhost:11434/v1",
+                            model="legacy:model")
+        with patch("agent.model_metadata.query_ollama_supports_tools", return_value=None):
+            kwargs = agent._build_api_kwargs([{"role": "user", "content": "hi"}])
+        assert kwargs.get("tools")
+
+
 

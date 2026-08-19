@@ -189,3 +189,65 @@ class TestRealisticStreaming:
         s = StreamingThinkScrubber()
         deltas = ["Hello ", "world ", "how ", "are ", "you?"]
         assert _drive(s, deltas) == "Hello world how are you?"
+
+
+class TestReasoningCollection:
+    """Stripped block content is collected for live reasoning display.
+
+    Ollama's OpenAI-compatible endpoint streams thinking inline in
+    ``delta.content`` wrapped in <think> tags instead of a structured
+    ``reasoning_content`` field.  The scrubber must expose the stripped
+    text via ``take_reasoning()`` so the agent can forward it to the
+    reasoning display while keeping the visible reply scrubbed.
+    """
+
+    def test_single_delta_collected(self) -> None:
+        s = StreamingThinkScrubber()
+        assert s.feed("<think>Let me reason</think>Hello") == "Hello"
+        assert s.take_reasoning() == "Let me reason"
+        assert s.take_reasoning() == ""
+
+    def test_split_tags_across_deltas(self) -> None:
+        """The MiniMax/Ollama pattern: '<think>' and '</think>' alone."""
+        s = StreamingThinkScrubber()
+        assert s.feed("<think>") == ""
+        assert s.feed("User wants the truth") == ""
+        assert s.feed("</think>") == ""
+        assert s.feed("Visible answer") == "Visible answer"
+        assert s.take_reasoning() == "User wants the truth"
+
+    def test_partial_tag_boundary_no_duplicates(self) -> None:
+        """Reasoning split at a partial close-tag boundary must not double-collect."""
+        s = StreamingThinkScrubber()
+        assert s.feed("<think>AAA</thi") == ""
+        assert s.feed("nk>BBB") == "BBB"
+        assert s.take_reasoning() == "AAA"
+
+    def test_multiple_blocks_concatenated(self) -> None:
+        s = StreamingThinkScrubber()
+        assert s.feed("<think>First</think>mid\n<think>Second</think>end") == "mid\nend"
+        assert s.take_reasoning() == "FirstSecond"
+
+    def test_no_tags_collects_nothing(self) -> None:
+        s = StreamingThinkScrubber()
+        assert s.feed("plain text") == "plain text"
+        assert s.take_reasoning() == ""
+
+    def test_reset_clears_collected_reasoning(self) -> None:
+        s = StreamingThinkScrubber()
+        s.feed("<think>stale</think>")
+        s.reset()
+        assert s.take_reasoning() == ""
+        assert s.feed("<think>fresh</think>x") == "x"
+        assert s.take_reasoning() == "fresh"
+
+    def test_interleaved_with_visible_chunks(self) -> None:
+        """Realistic Ollama stream: reasoning chunks interleave with UI deltas."""
+        s = StreamingThinkScrubber()
+        visible = []
+        for delta in ["<think>", "Step 1", "</think>", "Answer\n", "<think>", "Step 2", "</think>", "!"]:
+            out = s.feed(delta)
+            if out:
+                visible.append(out)
+        assert "".join(visible) == "Answer\n!"
+        assert s.take_reasoning() == "Step 1Step 2"

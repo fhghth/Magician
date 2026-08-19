@@ -8,7 +8,7 @@ Covers:
 from unittest.mock import patch, MagicMock
 
 
-from agent.model_metadata import query_ollama_num_ctx, query_ollama_supports_vision
+from agent.model_metadata import query_ollama_num_ctx, query_ollama_supports_tools, query_ollama_supports_vision
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -129,4 +129,48 @@ class TestQueryOllamaSupportsVision:
     def test_returns_none_for_non_ollama_server(self):
         with patch("agent.model_metadata.detect_local_server_type", return_value="vllm"):
             result = query_ollama_supports_vision("llava", "http://localhost:8000/v1")
+        assert result is None
+
+
+class TestQueryOllamaSupportsTools:
+    """Test Ollama /api/show tool-calling capability detection."""
+
+    def test_returns_true_when_capabilities_include_tools(self):
+        show_data = {"capabilities": ["completion", "tools"]}
+        mock_ctx, _ = _mock_httpx_client(show_data)
+
+        with patch("agent.model_metadata.detect_local_server_type", return_value="ollama"):
+            import httpx
+            with patch.object(httpx, "Client", return_value=mock_ctx):
+                result = query_ollama_supports_tools("qwen3:8b", "http://localhost:11434/v1")
+
+        assert result is True
+
+    def test_returns_false_when_tools_absent_from_capabilities(self):
+        """A capabilities list without 'tools' is a definitive no (Furina case)."""
+        show_data = {"capabilities": ["completion", "embedding"]}
+        mock_ctx, _ = _mock_httpx_client(show_data)
+
+        with patch("agent.model_metadata.detect_local_server_type", return_value="ollama"):
+            import httpx
+            with patch.object(httpx, "Client", return_value=mock_ctx):
+                result = query_ollama_supports_tools("Furina:latest", "http://localhost:11434")
+
+        assert result is False
+
+    def test_returns_none_when_no_capabilities_field(self):
+        """Pre-capabilities servers return None → callers must assume tools OK."""
+        show_data = {"model_info": {"llama.context_length": 8192}}
+        mock_ctx, _ = _mock_httpx_client(show_data)
+
+        with patch("agent.model_metadata.detect_local_server_type", return_value="ollama"):
+            import httpx
+            with patch.object(httpx, "Client", return_value=mock_ctx):
+                result = query_ollama_supports_tools("llama3.1:8b", "http://localhost:11434")
+
+        assert result is None
+
+    def test_returns_none_for_non_ollama_server(self):
+        with patch("agent.model_metadata.detect_local_server_type", return_value="vllm"):
+            result = query_ollama_supports_tools("qwen3:8b", "http://localhost:8000/v1")
         assert result is None
