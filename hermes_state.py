@@ -2928,6 +2928,7 @@ class SessionDB(SessionSearchMixin, SessionSchemaMixin, SessionPortabilityMixin)
         cwd: str = None,
         profile_name: str = None,
         git_repo_root: str = None,
+        agent_preset: str = None,
     ) -> None:
         """Insert a session row, enriching NULL metadata on conflict.
 
@@ -2970,9 +2971,10 @@ class SessionDB(SessionSearchMixin, SessionSchemaMixin, SessionPortabilityMixin)
                 """INSERT INTO sessions (
                    id, source, user_id, session_key, chat_id, chat_type, thread_id,
                    model, model_config, system_prompt, system_prompt_hash,
-                   parent_session_id, cwd, profile_name, git_repo_root, started_at
+                   parent_session_id, cwd, profile_name, git_repo_root, agent_preset,
+                   started_at
                 )
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO UPDATE SET
                        model = COALESCE(sessions.model, excluded.model),
                        model_config = COALESCE(sessions.model_config, excluded.model_config),
@@ -2993,7 +2995,8 @@ class SessionDB(SessionSearchMixin, SessionSchemaMixin, SessionPortabilityMixin)
                        parent_session_id = COALESCE(sessions.parent_session_id, excluded.parent_session_id),
                        cwd = COALESCE(sessions.cwd, excluded.cwd),
                        profile_name = COALESCE(sessions.profile_name, excluded.profile_name),
-                       git_repo_root = COALESCE(sessions.git_repo_root, excluded.git_repo_root)""",
+                       git_repo_root = COALESCE(sessions.git_repo_root, excluded.git_repo_root),
+                       agent_preset = COALESCE(sessions.agent_preset, excluded.agent_preset)""",
                 (
                     session_id,
                     source,
@@ -3009,6 +3012,7 @@ class SessionDB(SessionSearchMixin, SessionSchemaMixin, SessionPortabilityMixin)
                     cwd,
                     profile_name,
                     git_repo_root,
+                    agent_preset,
                     time.time(),
                 ),
             )
@@ -3181,6 +3185,19 @@ class SessionDB(SessionSearchMixin, SessionSchemaMixin, SessionPortabilityMixin)
             conn.execute(
                 "UPDATE sessions SET expiry_finalized = ? WHERE id = ?",
                 (1 if finalized else 0, session_id),
+            )
+
+        self._execute_write(_do)
+
+    def set_session_agent_preset(self, session_id: str, preset_id: str) -> None:
+        """Record the active agent preset on a session row (None clears it)."""
+        if not session_id:
+            return
+
+        def _do(conn):
+            conn.execute(
+                "UPDATE sessions SET agent_preset = ? WHERE id = ?",
+                (preset_id, session_id),
             )
 
         self._execute_write(_do)

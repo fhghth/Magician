@@ -1,0 +1,3 @@
+name: Standard
+description: Default Hermes behavior — no persona, all default tools.
+order: 2

@@ -1895,6 +1895,17 @@ DEFAULT_CONFIG = {
     # (apiKey, workspace, peerName, sessions, enabled) comes from the global config.
     "honcho": {},
 
+    # Agent presets (aligned with deepseek-harness agent-presets) — persona +
+    # tool/capability profiles mounted per session. Built-ins ship under
+    # hermes_cli/agent_presets/; user presets live in
+    # ~/.hermes/.agent-presets/<id>/ (built-in ids win on collision).
+    #   * "default": preset id applied to new sessions ("" = no preset).
+    #   * Switching mid-session via /preset or `hermes preset set` recomposes
+    #     the running agent immediately (harness recompose semantics).
+    "agent_presets": {
+        "default": "",
+    },
+
     # IANA timezone (e.g. "Asia/Kolkata", "America/New_York").
     # Empty string means use server-local time.
     "timezone": "",

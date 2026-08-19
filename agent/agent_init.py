@@ -529,6 +529,7 @@ def init_agent(
     checkpoint_max_file_size_mb: int = 10,
     pass_session_id: bool = False,
     requested_provider: str = None,
+    agent_preset: str = None,
 ):
     """
     Initialize the AI Agent.
@@ -1427,8 +1428,58 @@ def init_agent(
         agent._tool_snapshot_generation = _snapshot_registry._generation
     except Exception:
         agent._tool_snapshot_generation = 0
-    agent.tools = _ra().get_tool_definitions(
-        enabled_toolsets=enabled_toolsets,
+
+    # ── Agent preset resolution (aligned with deepseek-harness agent-presets) ──
+    # Priority: explicit parameter > session record > config default. The
+    # preset's tools rows + capabilities merge into the toolset lists before
+    # the tool snapshot is taken; the persona is stored on the agent and
+    # applied by agent.system_prompt.build_system_prompt_parts.
+    agent._agent_preset = None
+    agent._preset_persona = None
+    agent._agent_preset_id = None
+    _preset_id = agent_preset
+    try:
+        if not _preset_id and session_db is not None and session_id:
+            _sess_meta = session_db.get_session(session_id)
+            if _sess_meta and _sess_meta.get("agent_preset"):
+                _preset_id = _sess_meta["agent_preset"]
+    except Exception:
+        _preset_id = agent_preset
+    if not _preset_id:
+        try:
+            from hermes_cli.config import load_config_readonly as _load_preset_cfg
+            _preset_id = str(
+                (_load_preset_cfg().get("agent_presets", {}) or {}).get("default", "") or ""
+            )
+        except Exception:
+            _preset_id = ""
+    if _preset_id:
+        try:
+            from hermes_cli.agent_presets import apply_preset_tools, load_preset
+            _preset = load_preset(_preset_id)
+            agent._agent_preset = _preset
+            agent._agent_preset_id = _preset_id
+            _preset_persona = _preset.persona
+            if _preset_persona and str(_preset_persona.get("text", "") or "").strip():
+                agent._preset_persona = _preset_persona
+            enabled_toolsets, disabled_toolsets = apply_preset_tools(
+                _preset, enabled_toolsets, disabled_toolsets
+            )
+            if not quiet_mode:
+                _preset_label = (
+                    f" ({_preset.name})"
+                    if _preset.name and _preset.name != _preset.id
+                    else ""
+                )
+                print(f"🎭 Agent preset: {_preset.id}{_preset_label}")
+        except Exception as _preset_exc:
+            logger.warning("agent preset %r could not be applied: %s", _preset_id, _preset_exc)
+            if not quiet_mode:
+                print(f"⚠️  Agent preset {_preset_id!r} not applied: {_preset_exc}")
+    else:
+        agent._agent_preset_id = None
+
+    agent.tools = _ra().get_tool_definitions(        enabled_toolsets=enabled_toolsets,
         disabled_toolsets=disabled_toolsets,
         quiet_mode=agent.quiet_mode,
     )

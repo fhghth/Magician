@@ -691,6 +691,124 @@ class CLICommandsMixin:
         self.new_session()
         _cprint(f"{_DIM}Session reset. New tool configuration is active.{_RST}")
 
+    def _handle_preset_command(self, cmd: str):
+        """Handle /preset — list, switch, and copy agent presets.
+
+        /preset                  → list presets with the active one marked
+        /preset <id>             → switch this session to <id> (recompose now)
+        /preset copy <id> <new>  → copy a preset to ~/.hermes/.agent-presets/
+        /preset default <id>     → persist <id> as the global default ("" clears)
+
+        Switching recomposes the running agent on the next turn (harness
+        recompose semantics): the conversation history survives, the agent's
+        persona + tool profile change immediately.
+        """
+        import shlex
+
+        from cli import _ACCENT, _DIM, _RST, _cprint
+        from hermes_cli.agent_presets import (
+            copy_preset,
+            discover_presets,
+            find_preset,
+            user_presets_root,
+        )
+        from hermes_cli.config import load_config
+
+        try:
+            parts = shlex.split(cmd)
+        except ValueError:
+            parts = cmd.split()
+        sub = parts[1] if len(parts) > 1 else ""
+        current = getattr(self, "_agent_preset", None)
+
+        if sub == "copy":
+            if len(parts) < 4:
+                _cprint(f"{_DIM}Usage: /preset copy <src-id> <new-id>{_RST}")
+                return
+            src_id, new_id = parts[2], parts[3]
+            try:
+                dest = copy_preset(src_id, new_id)
+            except ValueError as exc:
+                _cprint(f"{_RST}✗ {exc}")
+                return
+            _cprint(f"{_ACCENT}✓ Copied preset {src_id} → {new_id}{_RST}")
+            _cprint(f"{_DIM}  {dest}{_RST}")
+            _cprint(f"{_DIM}  Activate with: /preset {new_id}{_RST}")
+            return
+
+        if sub == "default":
+            if len(parts) < 3:
+                _cprint(f"{_DIM}Usage: /preset default <id|''>{_RST}")
+                return
+            target = parts[2]
+            if target and find_preset(target) is None:
+                _cprint(f"{_RST}✗ Unknown preset: {target}")
+                self._print_preset_list(current)
+                return
+            try:
+                from cli import save_config_value
+
+                save_config_value("agent_presets.default", target)
+            except Exception as exc:
+                _cprint(f"{_RST}✗ Could not persist default preset: {exc}")
+                return
+            _cprint(f"{_ACCENT}✓ Default preset set: {target or '(none)'}{_RST}")
+            return
+
+        if sub and sub != "list":
+            target = sub
+            preset = find_preset(target)
+            if preset is None:
+                _cprint(f"{_RST}✗ Unknown preset: {target}")
+                self._print_preset_list(current)
+                return
+            if preset.broken:
+                _cprint(f"{_RST}✗ Preset {target!r} is broken: {preset.broken_reason}")
+                return
+            self._agent_preset = target
+            try:
+                if self._session_db is not None:
+                    self._session_db.set_session_agent_preset(self.session_id, target)
+            except Exception:
+                pass
+            # Recompose: drop the agent so the next turn rebuilds it with the
+            # new preset. Conversation history lives on the CLI, so it survives.
+            self.agent = None
+            label = f" ({preset.name})" if preset.name and preset.name != preset.id else ""
+            _cprint(f"{_ACCENT}🎭 Preset switched to {target}{label}{_RST}")
+            _cprint(f"{_DIM}  Persona + tools recompose on your next message.{_RST}")
+            return
+
+        self._print_preset_list(current)
+
+    def _print_preset_list(self, current: Optional[str] = None):
+        """Print all discovered presets (built-in + user), marking the active one."""
+        from cli import _ACCENT, _DIM, _RST, _cprint
+        from hermes_cli.agent_presets import discover_presets
+        from hermes_constants import display_hermes_home
+
+        presets = discover_presets()
+        if not presets:
+            _cprint(f"{_DIM}No agent presets found.{_RST}")
+            return
+        _cprint(f"{_ACCENT}Agent presets:{_RST}")
+        for preset in presets:
+            active = " ▶" if preset.id == current else "  "
+            trust = "built-in" if preset.trust == "system" else "user"
+            if preset.broken:
+                _cprint(
+                    f"{active}[{trust}] {preset.id} — ✗ broken: {preset.broken_reason}"
+                )
+                continue
+            name_part = f" — {preset.name}" if preset.name and preset.name != preset.id else ""
+            desc_part = f": {preset.description}" if preset.description else ""
+            tools_part = f" ({preset.toolset_summary()})"
+            _cprint(
+                f"{active}[{trust}] {preset.id}{name_part}{_DIM}{desc_part}{_RST}"
+                f"{_DIM}{tools_part}{_RST}"
+            )
+        _cprint(f"{_DIM}Switch with /preset <id>; copy with /preset copy <src> <new>.{_RST}")
+
     def _handle_profile_command(self):
         """Display active profile name and home directory."""
         from hermes_cli.slash_exec import CommandContext, execute_command

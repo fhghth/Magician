@@ -11742,6 +11742,26 @@ def main():
     build_tools_parser(subparsers, cmd_tools=cmd_tools)
 
     # =========================================================================
+    # preset command — agent presets (persona + tool profiles)
+    # =========================================================================
+    preset_parser = subparsers.add_parser(
+        "preset",
+        help="List, show, copy, or set the default agent preset",
+        description=(
+            "Agent presets (aligned with deepseek-harness) bundle a persona, "
+            "a tool profile, and capability switches into one switchable "
+            "configuration. Built-ins ship with Hermes; user presets live in "
+            "~/.hermes/.agent-presets/<id>/. Switch mid-session with /preset."
+        ),
+    )
+    try:
+        from hermes_cli.presets import register_cli as _register_presets_cli
+
+        _register_presets_cli(preset_parser)
+    except Exception as _exc:
+        logging.getLogger(__name__).debug("preset CLI wiring failed: %s", _exc)
+
+    # =========================================================================
     # computer-use command — manage Computer Use (cua-driver) on macOS
     # =========================================================================
     computer_use_parser = subparsers.add_parser(

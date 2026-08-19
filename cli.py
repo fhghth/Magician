@@ -4458,6 +4458,10 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
         self.enabled_toolsets = toolsets
         self.disabled_toolsets = CLI_CONFIG["agent"].get("disabled_toolsets") or []
 
+        # Agent preset for this session (set via /preset; None = config default
+        # or no preset). Persisted per-session in state.db sessions.agent_preset.
+        self._agent_preset = None
+
         if toolsets and "all" not in toolsets and "*" not in toolsets:
             # Validate each toolset — MCP server names are resolved via
             # live registry aliases (registered during discover_mcp_tools),
@@ -9895,6 +9899,8 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
             self._handle_profile_command()
         elif canonical == "tools":
             self._handle_tools_command(cmd_original)
+        elif canonical == "preset":
+            self._handle_preset_command(cmd_original)
         elif canonical == "toolsets":
             self.show_toolsets()
         elif canonical == "config":

@@ -172,6 +172,27 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # we resolve through ``_ra()`` to honor those patches.
     _r = _ra()
 
+    # Agent preset persona (complete) — replaces the whole system prompt
+    # (harness: persona line with ``complete: true``). The caller-supplied
+    # system_message is preserved; runtime context hints are appended when the
+    # preset opts in via ``include_runtime_context``.
+    _preset_persona = getattr(agent, "_preset_persona", None)
+    if _preset_persona and _preset_persona.get("complete"):
+        _persona_parts = [str(_preset_persona["text"]).strip()]
+        if _preset_persona.get("include_runtime_context"):
+            try:
+                from agent.prompt_builder import build_environment_hints
+                _persona_parts.append(build_environment_hints())
+            except Exception:
+                pass
+        if system_message and system_message.strip():
+            _persona_parts.append(system_message.strip())
+        return {
+            "stable": "\n\n".join(_persona_parts),
+            "context": "",
+            "volatile": "",
+        }
+
     # Resolve the model's context window once so context-file caps can scale
     # to it (dynamic cap — see prompt_builder._dynamic_context_file_max_chars).
     # None falls back to the historical flat default. This value is stable for
@@ -550,6 +571,12 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     if agent.platform:
         timestamp_line += f"\nPlatform: {agent.platform}"
     volatile_parts.append(timestamp_line)
+
+    # Agent preset persona (append) — added after the timestamp so it rides in
+    # the most volatile position; a cache-backed session rebuilds it with the
+    # rest of the volatile tail.
+    if _preset_persona and not _preset_persona.get("complete"):
+        volatile_parts.append(str(_preset_persona["text"]).strip())
 
     return {
         "stable":   "\n\n".join(p.strip() for p in stable_parts   if p and p.strip()),

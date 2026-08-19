@@ -1,0 +1,3 @@
+# Standard = the default Hermes session. The empty composition changes
+# nothing; selecting it restores defaults (harness "standard" preset role).
+[]

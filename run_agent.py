@@ -506,6 +506,7 @@ class AIAgent:
         checkpoint_max_file_size_mb: int = 10,
         pass_session_id: bool = False,
         requested_provider: str = None,
+        agent_preset: str = None,
     ):
         """Forwarder — see ``agent.agent_init.init_agent``."""
         if tool_delay is not None:
@@ -589,6 +590,7 @@ class AIAgent:
             checkpoint_max_total_size_mb=checkpoint_max_total_size_mb,
             checkpoint_max_file_size_mb=checkpoint_max_file_size_mb,
             pass_session_id=pass_session_id,
+            agent_preset=agent_preset,
         )
 
     def _get_session_db_for_recall(self):
@@ -654,6 +656,7 @@ class AIAgent:
                 parent_session_id=self._parent_session_id,
                 cwd=_launch_cwd_for_session(source),
                 profile_name=_profile_for_session,
+                agent_preset=getattr(self, "_agent_preset_id", None),
             )
             self._session_db_created = True
         except Exception as e:
@@ -6179,6 +6182,15 @@ class AIAgent:
             think_scrubber = getattr(self, "_stream_think_scrubber", None)
             if think_scrubber is not None:
                 text = think_scrubber.feed(text or "")
+                # Forward reasoning stripped from <think>-style blocks to
+                # the reasoning display (Ollama's OpenAI-compatible
+                # endpoint streams thinking inline in content, not via a
+                # structured reasoning_content field — without this the
+                # thinking is silently dropped from the live view and
+                # only resurfaces after the turn completes).
+                stripped_reasoning = think_scrubber.take_reasoning()
+                if stripped_reasoning:
+                    self._fire_reasoning_delta(stripped_reasoning)
             else:
                 # Defensive: legacy callers without the scrubber attribute.
                 text = self._strip_think_blocks(text or "")
