@@ -81,6 +81,7 @@ STAGE_NAME=""
 JSON_OUTPUT=false
 NON_INTERACTIVE=false
 INCLUDE_DESKTOP=false
+INCLUDE_LOCAL_RUNTIME=false
 
 # Detect non-interactive mode (e.g. curl | bash)
 # When stdin is not a terminal, read -p will fail with EOF,
@@ -140,6 +141,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --include-desktop|-IncludeDesktop)
             INCLUDE_DESKTOP=true
+            shift
+            ;;
+        --include-local-runtime|-IncludeLocalRuntime)
+            INCLUDE_LOCAL_RUNTIME=true
             shift
             ;;
         --dir)
@@ -322,7 +327,7 @@ emit_manifest() {
     if [ "$INCLUDE_DESKTOP" = true ]; then
         desktop_stage='{"name":"desktop","title":"Build desktop app","category":"runtime","needs_user_input":false},'
     fi
-    printf '%s' '{"protocol_version":1,"stages":[{"name":"prerequisites","title":"System prerequisites","category":"runtime","needs_user_input":false},{"name":"repository","title":"Download Hermes Agent","category":"runtime","needs_user_input":false},{"name":"venv","title":"Create Python virtual environment","category":"runtime","needs_user_input":false},{"name":"python-deps","title":"Install Python dependencies","category":"runtime","needs_user_input":false},{"name":"node-deps","title":"Install browser-tool dependencies","category":"runtime","needs_user_input":false},{"name":"path","title":"Install hermes command","category":"runtime","needs_user_input":false},{"name":"config","title":"Prepare config and skills","category":"configuration","needs_user_input":false},{"name":"setup","title":"Configure API keys and settings","category":"configuration","needs_user_input":true},{"name":"gateway","title":"Configure gateway service","category":"configuration","needs_user_input":true},'"$desktop_stage"'{"name":"complete","title":"Finish install","category":"runtime","needs_user_input":false}]}'
+    printf '%s' '{"protocol_version":1,"stages":[{"name":"prerequisites","title":"System prerequisites","category":"runtime","needs_user_input":false},{"name":"repository","title":"Download Hermes Agent","category":"runtime","needs_user_input":false},{"name":"venv","title":"Create Python virtual environment","category":"runtime","needs_user_input":false},{"name":"python-deps","title":"Install Python dependencies","category":"runtime","needs_user_input":false},{"name":"node-deps","title":"Install browser-tool dependencies","category":"runtime","needs_user_input":false},{"name":"local-runtime","title":"Prepare local model runtime (Ollama)","category":"optional","needs_user_input":false},{"name":"path","title":"Install hermes command","category":"runtime","needs_user_input":false},{"name":"config","title":"Prepare config and skills","category":"configuration","needs_user_input":false},{"name":"setup","title":"Configure API keys and settings","category":"configuration","needs_user_input":true},{"name":"gateway","title":"Configure gateway service","category":"configuration","needs_user_input":true},'"$desktop_stage"'{"name":"complete","title":"Finish install","category":"runtime","needs_user_input":false}]}'
     printf '\n'
 }
 
@@ -3258,6 +3263,38 @@ run_stage_body() {
             check_node
             install_desktop_voice_deps
             install_desktop
+            ;;
+        local-runtime)
+            # Opt-in stage: skipped unless --include-local-runtime (or
+            # HERMES_LOCAL_RUNTIME=1) was passed. The portable Ollama package
+            # is a large download most installs never need; the desktop
+            # settings UI and `hermes local-runtime install` cover the
+            # on-demand path.
+            if [ "$INCLUDE_LOCAL_RUNTIME" = true ] || [ "${HERMES_LOCAL_RUNTIME:-}" = "1" ]; then
+                detect_os
+                resolve_install_layout
+                require_install_dir
+                python_bin=""
+                if [ -x ".venv/bin/python" ]; then
+                    python_bin=".venv/bin/python"
+                elif [ -x "venv/bin/python" ]; then
+                    python_bin="venv/bin/python"
+                fi
+                if [ -z "$python_bin" ]; then
+                    log_warn "Skipping local model runtime (venv Python not found)"
+                    if [ "$JSON_OUTPUT" = true ]; then
+                        emit_stage_json "local-runtime" true true "venv Python not found"
+                    fi
+                else
+                    log_info "Installing managed Ollama runtime (downloads the portable package)..."
+                    "$python_bin" -m hermes_cli.main local-runtime install
+                fi
+            else
+                log_info "Skipping local model runtime (opt-in; pass --include-local-runtime to enable)"
+                if [ "$JSON_OUTPUT" = true ]; then
+                    emit_stage_json "local-runtime" true true "not requested (--include-local-runtime)"
+                fi
+            fi
             ;;
         complete)
             detect_os

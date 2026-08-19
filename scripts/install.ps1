@@ -62,7 +62,16 @@ param(
     #   * The canonical CLI one-liner (irm | iex) omits the flag too;
     #     terminal users don't need a desktop binary built for them, and
     #     `hermes desktop` already builds on demand.
-    [switch]$IncludeDesktop
+    [switch]$IncludeDesktop,
+
+    # --- Local model runtime (opt-in, skipped by default) ---
+    # When set, install.ps1 runs `hermes local-runtime install` after the
+    # venv exists, so the managed portable Ollama package is ready for the
+    # Local Models settings surface.  Skipped by default because it pulls
+    # a multi-hundred-MB download the majority of installs never use; the
+    # stage stays in the manifest so drivers (Hermes-Setup.exe, CI) can
+    # opt in per-run.
+    [switch]$IncludeLocalRuntime
 )
 
 $ErrorActionPreference = "Stop"
@@ -3540,6 +3549,39 @@ function Install-PlatformSdks {
     }
 }
 
+function Invoke-LocalRuntimeInstall {
+    # Opt-in stage: skipped unless -IncludeLocalRuntime (or
+    # $env:HERMES_LOCAL_RUNTIME="1") was passed. The portable Ollama package
+    # is a large download most installs never need; the desktop settings UI
+    # and `hermes local-runtime install` cover the on-demand path.
+    if (-not ($IncludeLocalRuntime -or $env:HERMES_LOCAL_RUNTIME -eq "1")) {
+        Write-Info "Skipping local model runtime (opt-in; pass -IncludeLocalRuntime to enable)"
+        $script:_StageSkippedReason = "not requested (-IncludeLocalRuntime)"
+        return
+    }
+
+    $venvPython = Join-Path $InstallDir ".venv\Scripts\python.exe"
+    if (-not (Test-Path $venvPython)) {
+        $venvPython = Join-Path $InstallDir "venv\Scripts\python.exe"
+    }
+    if (-not (Test-Path $venvPython)) {
+        Write-Warn "Skipping local model runtime (venv Python not found)"
+        $script:_StageSkippedReason = "venv Python not found"
+        return
+    }
+
+    Write-Info "Installing managed Ollama runtime (downloads the portable package)..."
+    Push-Location $InstallDir
+    try {
+        & $venvPython -m hermes_cli.main local-runtime install
+        if ($LASTEXITCODE -ne 0) {
+            throw "hermes local-runtime install exited with code $LASTEXITCODE"
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Invoke-SetupWizard {
     if ($SkipSetup) {
         Write-Info "Skipping setup wizard (-SkipSetup)"
@@ -3796,6 +3838,7 @@ if ($IncludeDesktop) {
     $InstallStages += @{ Name = "desktop"; Title = "Building desktop app"; Category = "install"; NeedsUserInput = $false; Worker = "Stage-Desktop" }
 }
 $InstallStages += @(
+    @{ Name = "local-runtime";   Title = "Preparing local model runtime (Ollama)"; Category = "optional";      NeedsUserInput = $false; Worker = "Stage-LocalRuntime" }
     @{ Name = "path";             Title = "Adding Hermes to PATH";                Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-Path" }
     @{ Name = "config-templates"; Title = "Writing configuration templates";      Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-ConfigTemplates" }
     @{ Name = "platform-sdks";    Title = "Installing messaging platform SDKs";   Category = "finalize";     NeedsUserInput = $false; Worker = "Stage-PlatformSdks" }
@@ -3844,6 +3887,7 @@ function Stage-Venv             { Resolve-UvCmd; Install-Venv }
 function Stage-Dependencies     { Resolve-UvCmd; Install-Dependencies }
 function Stage-NodeDeps         { Install-NodeDeps }
 function Stage-Desktop          { Install-DesktopVoiceDeps; Install-Desktop }
+function Stage-LocalRuntime     { Invoke-LocalRuntimeInstall }
 function Stage-Path             { Set-PathVariable }
 function Stage-ConfigTemplates  { Copy-ConfigTemplates }
 function Stage-PlatformSdks     { Resolve-UvCmd; Install-PlatformSdks }

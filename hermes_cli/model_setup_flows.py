@@ -3149,3 +3149,126 @@ def _model_flow_anthropic(config, current_model=""):
         print(f"Default model set to: {selected} (via Anthropic)")
     else:
         print("No change.")
+
+
+def _model_flow_local(config, current_model=""):
+    """Local models via the managed Ollama runtime.
+
+    Installs the portable package when missing, serves the runtime, pulls a
+    first model if none are installed, then activates the chosen model
+    (``activate_model`` writes the same custom-provider config the desktop
+    settings "Use" button writes, so the chat path is unchanged).
+    """
+    from hermes_cli.ollama_runtime import (
+        activate_model,
+        ensure_ollama,
+        list_models,
+        pull_model,
+        resolve_ollama,
+        runtime_status,
+        serve_ollama,
+    )
+
+    print("Local models (Ollama):")
+    print("  Hermes runs a private Ollama server on this machine. Nothing is")
+    print("  shared with Ollama.com.")
+    print()
+
+    def _print_progress(ev):
+        stage = ev.get("stage")
+        completed = ev.get("completed") or 0
+        total = ev.get("total") or 0
+        if stage == "done":
+            print()
+        elif stage and total:
+            pct = int(completed / total * 100) if total else 0
+            print(f"\r  {stage}: {pct}%", end="", flush=True)
+
+    if not resolve_ollama():
+        print("Ollama is not installed. Downloading the managed portable package...")
+        try:
+            ensure_ollama(progress_cb=_print_progress)
+        except KeyboardInterrupt:
+            print("\nCancelled.")
+            return
+        except Exception as exc:
+            print(f"\nInstall failed: {exc}")
+            return
+        print()
+
+    status = runtime_status()
+    if not status.get("running"):
+        print("Starting the Ollama server...")
+        try:
+            serve_ollama()
+        except Exception as exc:
+            print(f"Could not start the server: {exc}")
+            return
+
+    try:
+        listing = list_models()
+    except Exception as exc:
+        print(f"Could not list models: {exc}")
+        return
+
+    models = listing.get("models", [])
+    if not models:
+        print("No models installed yet.")
+        try:
+            tag = input("Model tag to pull (e.g. qwen3:8b) [skip]: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nCancelled.")
+            return
+        if tag:
+            print(f"Pulling {tag}...")
+            try:
+                for ev in pull_model(tag):
+                    status_text = ev.get("status") or ""
+                    progress = ev.get("progress") or 0
+                    total = ev.get("total") or 0
+                    if total:
+                        print(f"\r  {status_text}: {int(progress * 100)}%", end="", flush=True)
+                    else:
+                        print(f"\r  {status_text}...", end="", flush=True)
+                print()
+            except KeyboardInterrupt:
+                print("\nPulling cancelled.")
+                return
+            except Exception as exc:
+                print(f"\nPull failed: {exc}")
+                return
+            try:
+                models = list_models().get("models", [])
+            except Exception:
+                models = []
+
+    if not models:
+        print("No models to activate. Run `hermes local-runtime status` later.")
+        return
+
+    print("Installed models:")
+    for i, m in enumerate(models, 1):
+        caps = ",".join(m.get("capabilities") or [])
+        print(f"  {i}. {m.get('name')} ({m.get('parameter_size') or '?'}: {caps})")
+
+    try:
+        raw = input("Activate which model [1]: ").strip() or "1"
+        idx = int(raw) - 1
+        if idx < 0 or idx >= len(models):
+            print("Invalid choice. No change.")
+            return
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelled.")
+        return
+    except ValueError:
+        print("Invalid choice. No change.")
+        return
+
+    tag = models[idx].get("id")
+    try:
+        result = activate_model(tag)
+    except Exception as exc:
+        print(f"Could not activate {tag}: {exc}")
+        return
+    print(f"Activated {result.get('model')} ({result.get('provider')} at {result.get('base_url')}).")
+    print("Chat with it directly, or open Settings → Local Models in the desktop app.")

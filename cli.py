@@ -7235,6 +7235,23 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin, CLIBillingMixin):
         if os.environ.get("HERMES_DEFER_AGENT_STARTUP") != "1":
             self._show_tool_availability_warnings()
 
+        # Legacy llama.cpp registry notice — the pre-Ollama local runtime's
+        # GGUFs are not auto-migrated; point at the Ollama import surface.
+        try:
+            from hermes_cli.ollama_runtime import legacy_llama_registry
+            legacy = legacy_llama_registry()
+        except Exception:
+            legacy = None
+        if legacy:
+            self._console_print()
+            self._console_print(
+                "[yellow]⚠️  Legacy llama.cpp local models detected (old local_models.json).[/]"
+            )
+            self._console_print(
+                "[dim]   Hermes now uses Ollama for local models. Re-import your GGUFs via "
+                "`hermes model` → Local models (Ollama), or delete the old registry file.[/]"
+            )
+
         # Warn about low context lengths (common with local servers). Keep
         # this tied to the runtime guard so guidance cannot drift again.
         from agent.model_metadata import MINIMUM_CONTEXT_LENGTH

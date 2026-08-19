@@ -48,7 +48,7 @@ import zipfile
 from hermes_cli._subprocess_compat import windows_detach_flags, windows_hide_flags
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
 import yaml
 
@@ -81,6 +81,7 @@ from hermes_cli.config import (
     write_platform_config_field,
     _deep_merge,
 )
+from hermes_cli import ollama_runtime as _ollama_rt
 from plugins.memory.config_schema import (
     ProviderConfigSchema,
     ProviderField,
@@ -106,7 +107,7 @@ try:
         WebSocket, WebSocketDisconnect,
     )
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+    from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, SecretStr, field_validator
     from starlette.concurrency import run_in_threadpool
@@ -122,7 +123,7 @@ except ImportError:
             WebSocket, WebSocketDisconnect,
         )
         from fastapi.middleware.cors import CORSMiddleware
-        from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+        from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
         from fastapi.staticfiles import StaticFiles
         from pydantic import BaseModel, SecretStr, field_validator
         from starlette.concurrency import run_in_threadpool
@@ -1351,6 +1352,12 @@ from hermes_cli.web_models import (  # noqa: F401
     SessionImport,
     SessionRename,
     SessionPrune,
+    OllamaInstallRequest,
+    ModelPullRequest,
+    GgufImportRequest,
+    UrlImportRequest,
+    ModelCreateRequest,
+    ModelThinkingRequest,
     CronJobCreate,
     CronJobUpdate,
     AutomationBlueprintInstantiate,
@@ -7532,6 +7539,248 @@ async def validate_provider_credential(body: EnvVarUpdate, request: Request):
         # 429 = key is valid but rate-limited; success = valid.
         return {"ok": True, "reachable": True, "message": ""}
     return {"ok": False, "reachable": True, "message": f"Provider returned HTTP {resp.status_code} for this key."}
+
+
+# ---------------------------------------------------------------------------
+# Local inference runtime (Ollama) — status, lifecycle, model management.
+#
+# The runtime is managed by hermes_cli.ollama_runtime: resolution ladder
+# (env override -> PATH -> system install -> managed portable), detached
+# ``ollama serve`` with port-probe adoption across backend restarts, and the
+# Ollama HTTP API (/api/tags, /api/pull, /api/show, /api/delete, blobs).
+# Long-running operations (install / pull / URL import) stream SSE progress.
+# ---------------------------------------------------------------------------
+
+
+def _ollama_sse_event(ev: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a progress event to the SSE contract {stage, completed,
+    total, progress, error} — ensure_ollama/import emit completed/total only."""
+    ev = dict(ev)
+    total = ev.get("total") or 0
+    if "progress" not in ev:
+        ev["progress"] = round((ev.get("completed") or 0) / total, 4) if total > 0 else 0.0
+    return ev
+
+
+async def _ollama_sse_stream(profile: Optional[str], run: Callable[[Callable, Any], None]) -> "StreamingResponse":
+    """Stream an Ollama operation's progress events as server-sent events.
+
+    ``run(emit, cancel_event)`` executes inside a worker thread under the
+    request's profile scope; every dict it emits becomes one ``data:`` line.
+    ``cancel_event`` is set when the client disconnects, so long pulls abort.
+    """
+
+    async def _event_stream():
+        queue: "asyncio.Queue" = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+        cancel_event = threading.Event()
+
+        def _emit(item: Dict[str, Any]) -> None:
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+
+        def _producer() -> None:
+            try:
+                with _profile_scope(profile):
+                    run(_emit, cancel_event)
+            except BaseException as exc:
+                _emit({"status": "error", "error": str(exc)})
+            finally:
+                _emit(None)
+
+        future = asyncio.ensure_future(asyncio.to_thread(_producer))
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield f"data: {json.dumps(item)}\n\n"
+                if isinstance(item, dict) and item.get("error"):
+                    break
+        finally:
+            cancel_event.set()
+            future.cancel()
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _run_ollama(profile: Optional[str], fn: Callable, *args: Any, **kwargs: Any) -> Any:
+    """Run a blocking ollama_runtime call in a worker thread under the
+    request's profile scope (contextvar overrides do not cross threads)."""
+    def _run() -> Any:
+        with _profile_scope(profile):
+            return fn(*args, **kwargs)
+    return await asyncio.to_thread(_run)
+
+
+@app.get("/api/local-runtimes")
+def list_local_runtimes(profile: Optional[str] = None):
+    """Ollama runtime availability + live state (version, paths, GPU info)."""
+    try:
+        with _profile_scope(profile):
+            status = _ollama_rt.runtime_status()
+            return {
+                "ollama": {
+                    "available": bool(status.get("available")),
+                    "version": status.get("version") or "",
+                    "install_path": status.get("install_path") or "",
+                    "models_dir": status.get("models_dir") or "",
+                    "host": status.get("host") or "",
+                    "port": status.get("port") or 0,
+                    "running": bool(status.get("running")),
+                    "managed": bool(status.get("managed")),
+                    "gpu": status.get("gpu") or "",
+                }
+            }
+    except HTTPException:
+        raise
+    except Exception:
+        _log.exception("GET /api/local-runtimes failed")
+        raise HTTPException(status_code=500, detail="Failed to detect local runtimes")
+
+
+@app.post("/api/local-runtimes/ollama/install")
+async def install_ollama_route(profile: Optional[str] = None):
+    """Download the Ollama portable package when missing (SSE progress)."""
+    def _run(emit: Callable, cancel_event: Any) -> None:
+        _ollama_rt.ensure_ollama(lambda ev: emit(_ollama_sse_event(ev)))
+
+    return await _ollama_sse_stream(profile, _run)
+
+
+@app.post("/api/local-runtimes/ollama/start")
+async def start_ollama_route(profile: Optional[str] = None):
+    """Ensure Ollama is installed, start (or adopt) the server, return status."""
+    try:
+        status = await _run_ollama(profile, _ollama_rt.serve_ollama)
+        return {"ok": True, "status": status}
+    except Exception as exc:
+        _log.exception("POST /api/local-runtimes/ollama/start failed")
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/api/local-runtimes/ollama/stop")
+async def stop_ollama_route(profile: Optional[str] = None):
+    """Stop the Hermes-managed server (adopted/system instances are kept)."""
+    try:
+        status = await _run_ollama(profile, _ollama_rt.stop_ollama)
+        return {"ok": True, "status": status}
+    except Exception as exc:
+        _log.exception("POST /api/local-runtimes/ollama/stop failed")
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.get("/api/local-models")
+def list_local_models_route(profile: Optional[str] = None):
+    """List installed Ollama models (GET /api/tags) + the active local model."""
+    try:
+        with _profile_scope(profile):
+            return _ollama_rt.list_models()
+    except Exception:
+        _log.exception("GET /api/local-models failed")
+        raise HTTPException(status_code=500, detail="Failed to list local models")
+
+
+@app.post("/api/local-models/pull")
+async def pull_model_route(body: ModelPullRequest, profile: Optional[str] = None):
+    """Pull a model by tag from Ollama.com (SSE progress; disconnect aborts)."""
+    def _run(emit: Callable, cancel_event: Any) -> None:
+        for ev in _ollama_rt.pull_model(body.tag, cancel_event=cancel_event):
+            emit(ev)
+
+    return await _ollama_sse_stream(profile, _run)
+
+
+@app.post("/api/local-models/import-gguf")
+async def import_gguf_route(body: GgufImportRequest, profile: Optional[str] = None):
+    """Import a local GGUF/safetensors file: blob upload + model create."""
+    try:
+        model = await _run_ollama(profile, _ollama_rt.import_gguf, body.file_path, body.name or "")
+        return {"ok": True, "model": model}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        _log.exception("POST /api/local-models/import-gguf failed")
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/api/local-models/pull-from-url")
+async def pull_model_from_url_route(body: UrlImportRequest, profile: Optional[str] = None):
+    """Download a GGUF from a whitelisted host (HuggingFace/GitHub) and
+    import it (SSE progress; disconnect aborts)."""
+    def _run(emit: Callable, cancel_event: Any) -> None:
+        _ollama_rt.import_gguf_from_url(
+            body.url,
+            body.name or "",
+            progress_cb=lambda ev: emit(_ollama_sse_event(ev)),
+        )
+        emit({"stage": "done", "completed": 1, "total": 1})
+
+    return await _ollama_sse_stream(profile, _run)
+
+
+@app.post("/api/local-models/create")
+async def create_model_route(body: ModelCreateRequest, profile: Optional[str] = None):
+    """Create a model from a Modelfile (POST /api/create)."""
+    try:
+        await _run_ollama(profile, _ollama_rt.create_model, body.name, body.modelfile)
+        return {"ok": True}
+    except Exception as exc:
+        _log.exception("POST /api/local-models/create failed")
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.get("/api/local-models/{model_id}/show")
+def show_local_model_route(model_id: str, profile: Optional[str] = None):
+    """Capabilities + details for one installed model (POST /api/show)."""
+    try:
+        with _profile_scope(profile):
+            return _ollama_rt.show_model(model_id)
+    except Exception:
+        _log.exception("GET /api/local-models/%s/show failed", model_id)
+        raise HTTPException(status_code=500, detail="Failed to inspect local model")
+
+
+@app.post("/api/local-models/{model_id}/activate")
+def activate_local_model_route(model_id: str, profile: Optional[str] = None):
+    """Activate an installed model as the main model (writes config)."""
+    try:
+        with _profile_scope(profile):
+            result = _ollama_rt.activate_model(model_id)
+            return {"ok": True, **result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        _log.exception("POST /api/local-models/%s/activate failed", model_id)
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/api/local-models/{model_id}/thinking")
+def set_local_model_thinking_route(body: ModelThinkingRequest, model_id: str, profile: Optional[str] = None):
+    """Per-model thinking toggle, persisted via agent.reasoning_overrides."""
+    try:
+        with _profile_scope(profile):
+            return _ollama_rt.set_model_thinking(model_id, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        _log.exception("POST /api/local-models/%s/thinking failed", model_id)
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@app.delete("/api/local-models/{model_id}")
+def delete_local_model_route(model_id: str, profile: Optional[str] = None):
+    """Remove an installed model and its blobs (DELETE /api/delete)."""
+    try:
+        with _profile_scope(profile):
+            _ollama_rt.delete_model(model_id)
+            return {"ok": True}
+    except Exception as exc:
+        _log.exception("DELETE /api/local-models/%s failed", model_id)
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @app.delete("/api/env")

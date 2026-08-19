@@ -96,12 +96,33 @@ class StreamingThinkScrubber:
         self._in_block: bool = False
         self._buf: str = ""
         self._last_emitted_ended_newline: bool = True
+        # Reasoning text stripped from scrubbed blocks, pending collection
+        # by the caller via ``take_reasoning()`` (see feed() below).
+        self._reasoning_parts: list[str] = []
 
     def reset(self) -> None:
         """Reset all state.  Call at the top of every new turn."""
         self._in_block = False
         self._buf = ""
         self._last_emitted_ended_newline = True
+        self._reasoning_parts = []
+
+    def take_reasoning(self) -> str:
+        """Return and clear the reasoning text stripped so far.
+
+        Reasoning blocks arrive interleaved with visible text; the
+        caller (``run_agent._fire_stream_delta``) forwards the collected
+        text to ``_fire_reasoning_delta`` so models that embed thinking
+        inline in ``content`` (e.g. Ollama's OpenAI-compatible endpoint,
+        which streams ``<think>...</think>`` inside ``delta.content``
+        instead of a structured ``reasoning_content`` field) still get
+        live reasoning display alongside the scrubbed visible reply.
+        """
+        if not self._reasoning_parts:
+            return ""
+        parts = self._reasoning_parts
+        self._reasoning_parts = []
+        return "".join(parts)
 
     def feed(self, text: str) -> str:
         """Feed one delta; return the scrubbed visible portion.
@@ -124,11 +145,21 @@ class StreamingThinkScrubber:
                 )
                 if close_idx == -1:
                     # No close yet — hold back a potential partial
-                    # close-tag prefix; discard everything else.
+                    # close-tag prefix; discard everything else.  The
+                    # discarded text is reasoning content: it cannot be
+                    # recovered once dropped (the next feed() rebuilds
+                    # buf from the held suffix only), so collect it now.
                     held = self._max_partial_suffix(buf, self._CLOSE_TAGS)
+                    dropped = buf[:-held] if held else buf
+                    if dropped:
+                        self._reasoning_parts.append(dropped)
                     self._buf = buf[-held:] if held else ""
                     return "".join(out)
-                # Found close: discard block content + tag, continue.
+                # Found close: collect the block content as reasoning,
+                # discard tag + block, continue.
+                block_content = buf[:close_idx]
+                if block_content:
+                    self._reasoning_parts.append(block_content)
                 buf = buf[close_idx + close_len:]
                 self._in_block = False
             else:
@@ -149,7 +180,12 @@ class StreamingThinkScrubber:
                 if pair is not None and (
                     open_idx == -1 or pair[0] <= open_idx
                 ):
-                    start_idx, end_idx = pair
+                    start_idx, end_idx, content_start, close_len = pair
+                    # Collect the pair's inner text as reasoning before
+                    # discarding the whole construct.
+                    block_content = buf[content_start:end_idx - close_len]
+                    if block_content:
+                        self._reasoning_parts.append(block_content)
                     preceding = buf[:start_idx]
                     if preceding:
                         preceding = self._strip_orphan_close_tags(preceding)
@@ -253,7 +289,8 @@ class StreamingThinkScrubber:
         return best_idx, best_len
 
     def _find_earliest_closed_pair(self, buf: str):
-        """Return (start_idx, end_idx) of the earliest closed pair, else None.
+        """Return (start_idx, end_idx, content_start, close_len) of the earliest
+        closed pair, else None.
 
         A closed pair is ``<tag>...</tag>`` of any variant.  Matches are
         case-insensitive and non-greedy (the closest close tag after
@@ -263,7 +300,7 @@ class StreamingThinkScrubber:
         earlier wins.
         """
         buf_lower = buf.lower()
-        best: "tuple[int, int] | None" = None
+        best: "tuple[int, int, int, int] | None" = None
         for open_tag, close_tag in zip(self._OPEN_TAGS, self._CLOSE_TAGS):
             open_lower = open_tag.lower()
             close_lower = close_tag.lower()
@@ -277,7 +314,12 @@ class StreamingThinkScrubber:
                 continue
             end_idx = close_idx + len(close_lower)
             if best is None or open_idx < best[0]:
-                best = (open_idx, end_idx)
+                best = (
+                    open_idx,
+                    end_idx,
+                    open_idx + len(open_lower),
+                    len(close_lower),
+                )
         return best
 
     def _find_open_at_boundary(

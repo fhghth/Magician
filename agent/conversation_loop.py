@@ -118,6 +118,31 @@ _API_CALL_MODULES = frozenset({
     "chat_completion_helpers",
 })
 
+# Phrases that identify an OpenAI-compatible server rejecting a request
+# because the loaded model lacks function calling (HTTP 4xx, e.g. Ollama's
+# "registry.ollama.ai/library/Furina:latest does not support tools").
+# Matched case-insensitively against the error body; see the
+# "Tools-rejection recovery" block in the API retry loop. Best-effort
+# phrase matching — a reworded upstream error falls through to the
+# normal error handler.
+_TOOLS_REJECTION_PHRASES = (
+    "does not support tools",
+    "do not support tools",
+    "does not support tool calling",
+    "tool calling is not supported",
+    "tools are not supported",
+    "does not support function calling",
+    "function calling is not supported",
+)
+
+
+def _looks_like_tools_rejection(err_body: str) -> bool:
+    """True when the error body reads like a tools-array rejection (4xx)."""
+    if not err_body:
+        return False
+    lower = err_body.lower()
+    return any(p in lower for p in _TOOLS_REJECTION_PHRASES)
+
 
 def _apply_active_turn_redirect(agent: Any, messages: List[Dict[str, Any]], text: str) -> None:
     """Append a provider-safe checkpoint and correction to the live turn.
@@ -3768,6 +3793,37 @@ def run_conversation(
                         f"{agent.log_prefix}⚠️  Server rejected image content — "
                         f"switching to text-only mode for this session"
                         + (". Stripped images from history and retrying." if _imgs_removed else "."),
+                        force=True,
+                    )
+                    continue
+
+                # ── Tools-rejection recovery ───────────────────────────────
+                # OpenAI-compatible servers (Ollama especially) reject any
+                # request that carries a tools array when the loaded model
+                # lacks function calling — HTTP 400 "<model> does not support
+                # tools" (e.g. roleplay/character models like Furina:latest).
+                # On first hit, record the verdict in the same per-(model,
+                # base_url) cache that build_api_kwargs consults, then retry
+                # the turn without tools. Subsequent turns skip the tools
+                # array entirely (the cache is definitive-forever), so the
+                # session keeps working as plain chat instead of erroring on
+                # every turn. Mirrors the image-rejection recovery above.
+                if (
+                    _status_ok
+                    and getattr(agent, "tools", None)
+                    and _looks_like_tools_rejection(_err_body)
+                ):
+                    _tc_cache = getattr(agent, "_ollama_tools_cache", None)
+                    if _tc_cache is None:
+                        _tc_cache = agent._ollama_tools_cache = {}
+                    _tc_cache[(
+                        str(getattr(agent, "model", "") or ""),
+                        str(getattr(agent, "base_url", "") or ""),
+                    )] = (False, time.monotonic())
+                    agent._vprint(
+                        f"{agent.log_prefix}⚠️  Server rejected tool calling for "
+                        f"this model — switching to plain chat mode for this "
+                        f"session",
                         force=True,
                     )
                     continue

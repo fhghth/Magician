@@ -62,6 +62,33 @@ class CustomEndpointUpdate(BaseModel):
     models: Optional[List[str]] = None
 
 
+class OllamaInstallRequest(BaseModel):
+    """Body for POST /api/local-runtimes/ollama/install (no fields needed)."""
+
+
+class ModelPullRequest(BaseModel):
+    tag: str
+
+
+class GgufImportRequest(BaseModel):
+    file_path: str
+    name: Optional[str] = None
+
+
+class UrlImportRequest(BaseModel):
+    url: str
+    name: Optional[str] = None
+
+
+class ModelCreateRequest(BaseModel):
+    name: str
+    modelfile: str
+
+
+class ModelThinkingRequest(BaseModel):
+    enabled: bool
+
+
 class MessagingPlatformUpdate(BaseModel):
     enabled: Optional[bool] = None
     env: Dict[str, str] = {}

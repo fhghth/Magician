@@ -3133,6 +3133,22 @@ DEFAULT_CONFIG = {
         "region": "global",
     },
 
+    # Local inference runtime (Ollama) managed by Hermes. Non-secret
+    # settings only — the binary, state, and logs live under $HERMES_HOME;
+    # the only env-var escape hatch is HERMES_OLLAMA_BINARY.
+    "local_runtime": {
+        "ollama": {
+            # Managed install dir; empty → $HERMES_HOME/runtime/ollama.
+            "install_dir": "",
+            # Model storage dir (OLLAMA_MODELS); empty → $HERMES_HOME/models/ollama.
+            "models_dir": "",
+            # Bind address for `ollama serve`.
+            "host": "127.0.0.1",
+            # Occupied port → a free port is chosen automatically.
+            "port": 11434,
+        },
+    },
+
     # Config schema version - bump this when adding new required fields
     "_config_version": 33,
 }

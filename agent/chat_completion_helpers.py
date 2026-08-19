@@ -1120,10 +1120,60 @@ def interruptible_api_call(agent, api_kwargs: dict):
 
 
 
+def _ollama_missing_tools_cached(agent) -> bool:
+    """True when the active Ollama model provably lacks tool calling.
+
+    Some Ollama library models (e.g. roleplay/custom Modelfiles like
+    ``Furina:latest``) do not support function calling — sending ``tools``
+    makes the server reject the request with HTTP 400
+    ("<model> does not support tools"). Probes ``/api/show`` capabilities
+    once per (model, base_url) — definitive True/False is cached permanently,
+    an unknown probe (None: unreachable, not Ollama, pre-capabilities server)
+    is cached with a 60-second TTL and treated as "supports tools", so a
+    transient probe failure never silently demotes a tool-capable model.
+    """
+    if not getattr(agent, "tools", None) or not getattr(agent, "base_url", ""):
+        return False
+
+    cache = getattr(agent, "_ollama_tools_cache", None)
+    if cache is None:
+        cache = agent._ollama_tools_cache = {}
+    key = (str(getattr(agent, "model", "") or ""), str(getattr(agent, "base_url", "") or ""))
+    cached = cache.get(key)
+    if cached is not None:
+        supported, ts = cached
+        # Definitive True/False → permanent. Unknown (None) → 60s TTL.
+        if supported is not None or (time.monotonic() - ts) < 60:
+            return supported is False
+
+    try:
+        from agent.model_metadata import query_ollama_supports_tools
+
+        supported = query_ollama_supports_tools(
+            key[0],
+            key[1],
+            api_key=str(getattr(agent, "api_key", "") or ""),
+        )
+    except Exception:
+        supported = None
+    cache[key] = (supported, time.monotonic())
+    return supported is False
+
+
 def build_api_kwargs(agent, api_messages: list, tools_for_api: list | None = None) -> dict:
     """Build the keyword arguments dict for the active API mode."""
     if tools_for_api is None:
         tools_for_api = agent.tools
+
+    # Models without tool-calling capability must not receive the tools array
+    # (Ollama 400s: "<model> does not support tools"). Degrade to plain chat —
+    # the agent still works, it just can't call tools this session.
+    if tools_for_api and _ollama_missing_tools_cached(agent):
+        logger.info(
+            "Ollama model %s does not support tool calling; running without tools",
+            getattr(agent, "model", ""),
+        )
+        tools_for_api = None
 
     if agent.api_mode == "anthropic_messages":
         _transport = agent._get_transport()

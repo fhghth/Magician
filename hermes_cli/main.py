@@ -801,6 +801,7 @@ from hermes_cli.model_setup_flows import (
     _model_flow_anthropic,
     _model_flow_moa,
     _model_flow_ai_gateway,
+    _model_flow_local,
 )
 logger = logging.getLogger(__name__)
 
@@ -3365,6 +3366,7 @@ def select_provider_and_model(args=None):
             ordered.append((key, label, []))
 
     ordered.append(("custom", "Custom endpoint (enter URL manually)", []))
+    ordered.append(("local", "Local models (Ollama) — run models on this machine", []))
     _has_saved_custom_list = isinstance(config.get("custom_providers"), list) and bool(
         config.get("custom_providers")
     )
@@ -3434,6 +3436,8 @@ def select_provider_and_model(args=None):
         _model_flow_copilot(config, current_model)
     elif selected_provider == "custom":
         _model_flow_custom(config)
+    elif selected_provider == "local":
+        _model_flow_local(config, current_model)
     elif (
         selected_provider.startswith("custom:")
         or selected_provider in _custom_provider_map
@@ -11537,6 +11541,23 @@ def main():
     )
     from hermes_cli.checkpoints import register_cli as _register_checkpoints_cli
     _register_checkpoints_cli(checkpoints_parser)
+
+    # =========================================================================
+    # local-runtime command  (parser built in hermes_cli/local_runtime_cmd.py)
+    # =========================================================================
+    local_runtime_parser = subparsers.add_parser(
+        "local-runtime",
+        help="Install / inspect / update the managed Ollama local model runtime",
+        description=(
+            "Hermes can install and manage a portable Ollama server for "
+            "local models (no system install needed). Use `hermes local-runtime "
+            "install` once, then pick a local model in chat or the settings UI."
+        ),
+    )
+    from hermes_cli.local_runtime_cmd import local_runtime_command as _local_runtime_command
+    from hermes_cli.local_runtime_cmd import register_cli as _register_local_runtime_cli
+    _register_local_runtime_cli(local_runtime_parser)
+    local_runtime_parser.set_defaults(func=_local_runtime_command)
 
     # =========================================================================
     # import command  (parser built in hermes_cli/subcommands/import_cmd.py)
