@@ -3727,6 +3727,12 @@ def _stored_session_runtime_overrides(row: dict | None) -> dict:
         overrides["service_tier_override"] = ""
     elif service_tier:
         overrides["service_tier_override"] = service_tier
+    # The agent preset the session was created (or last switched) under, so a
+    # resume rebuilds the same composition instead of falling back to the
+    # profile default (mirrors the CLI's session-record-wins rule).
+    stored_preset = str(row.get("agent_preset") or "").strip()
+    if stored_preset:
+        overrides["agent_preset"] = stored_preset
 
     return overrides
 
@@ -5117,6 +5123,7 @@ def _session_info(agent, session: dict | None = None) -> dict:
         "branch": _git_branch_for_cwd(cwd),
         "project": _project_info_for_cwd(cwd),
         "personality": str(personality or ""),
+        "agent_preset": str(getattr(agent, "_agent_preset_id", "") or "") or "",
         "running": bool((session or {}).get("running")),
         "title": _session_live_title(session or {}, session_key) if session_key else "",
         "stored_session_id": session_key or "",
@@ -6337,6 +6344,7 @@ def _make_agent(
     reasoning_config_override: dict | None = None,
     service_tier_override: str | None = None,
     platform_override: str | None = None,
+    agent_preset: str | None = None,
 ):
     # AC-4 test seam: dead unless explicitly armed by the isolated certify
     # harness. Both inline and compute-host paths construct through _make_agent,
@@ -6475,6 +6483,7 @@ def _make_agent(
         acp_command=runtime.get("command"),
         acp_args=runtime.get("args"),
         credential_pool=runtime.get("credential_pool"),
+        agent_preset=agent_preset,
         quiet_mode=True,
         # verbose_logging controls DEBUG-level agent logging; it is intentionally
         # independent of tool_progress_mode (which only controls per-tool
@@ -13941,6 +13950,7 @@ from . import (  # noqa: E402
     methods_complete as _methods_complete,
     methods_config as _methods_config,
     methods_meeting as _methods_meeting,
+    methods_presets as _methods_presets,
     methods_prompt as _methods_prompt,
     methods_session as _methods_session,
     methods_tools as _methods_tools,
@@ -13953,6 +13963,7 @@ for _m in (
     _methods_complete,
     _methods_tools,
     _methods_meeting,
+    _methods_presets,
 ):
     _m.register(sys.modules[__name__])
 del _m
