@@ -11,6 +11,7 @@ import {
   BarChart3,
   Bell,
   Download,
+  FolderOpen,
   Globe,
   Info,
   Keyboard,
@@ -194,6 +195,13 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             id: 'pview:custom-endpoints',
             label: t.settings.nav.providerCustomEndpoints,
             onSelect: () => openProviderView('custom-endpoints')
+          },
+          {
+            active: activeView === 'providers' && providerView === 'local-models',
+            icon: FolderOpen,
+            id: 'pview:local-models',
+            label: t.settings.nav.providerLocalModels,
+            onSelect: () => openProviderView('local-models')
           }
         ],
         gapBefore: true,

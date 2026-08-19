@@ -25,6 +25,9 @@ import type {
   EnvVarInfo,
   HermesConfig,
   HermesConfigRecord,
+  GgufImportRequest,
+  LocalModelListResponse,
+  LocalRuntimesResponse,
   LogsResponse,
   McpCatalogResponse,
   McpServerSummary,
@@ -37,12 +40,19 @@ import type {
   MoaConfigResponse,
   ModelAssignmentRequest,
   ModelAssignmentResponse,
+  ModelCreateRequest,
   ModelInfoResponse,
   ModelOptionsResponse,
   OAuthPollResponse,
   OAuthProvidersResponse,
   OAuthStartResponse,
   OAuthSubmitResponse,
+  OllamaActivateResult,
+  OllamaInstallProgress,
+  OllamaModelShow,
+  OllamaPullProgress,
+  OllamaRuntimeStatus,
+  OllamaThinkingResult,
   PaginatedSessions,
   PairingResponse,
   PairingUser,
@@ -161,6 +171,9 @@ export type {
   GatewayReadyPayload,
   HermesConfig,
   HermesConfigRecord,
+  GgufImportRequest,
+  LocalModelListResponse,
+  LocalRuntimesResponse,
   LogsResponse,
   McpCatalogEntry,
   McpCatalogResponse,
@@ -179,9 +192,20 @@ export type {
   MoaModelSlot,
   ModelAssignmentRequest,
   ModelAssignmentResponse,
+  ModelCreateRequest,
   ModelInfoResponse,
   ModelOptionProvider,
   ModelOptionsResponse,
+  OAuthPollResponse,
+  OAuthProvidersResponse,
+  OAuthStartResponse,
+  OAuthSubmitResponse,
+  OllamaActivateResult,
+  OllamaInstallProgress,
+  OllamaModelShow,
+  OllamaPullProgress,
+  OllamaRuntimeStatus,
+  OllamaThinkingResult,
   PaginatedSessions,
   PairingResponse,
   PairingUser,
@@ -831,6 +855,211 @@ export function deleteCustomEndpoint(id: string): Promise<CustomEndpointsRespons
   return window.hermesDesktop.api<CustomEndpointsResponse>({
     path: `/api/providers/custom-endpoints/${encodeURIComponent(id)}`,
     method: 'DELETE'
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Local models (Ollama runtime) — plan: docs/local-models-ollama-plan.md.
+// SSE endpoints (install / pull / pull-from-url) ride the hermes:api-stream
+// bridge: main owns the fetch + SSE parsing and forwards `data:` events.
+// ---------------------------------------------------------------------------
+
+export function getLocalRuntimes(): Promise<LocalRuntimesResponse> {
+  return window.hermesDesktop.api<LocalRuntimesResponse>({
+    ...profileScoped(),
+    path: '/api/local-runtimes'
+  })
+}
+
+export function getLocalModels(): Promise<LocalModelListResponse> {
+  return window.hermesDesktop.api<LocalModelListResponse>({
+    ...profileScoped(),
+    path: '/api/local-models'
+  })
+}
+
+export function startOllama(): Promise<{ ok: boolean; status: OllamaRuntimeStatus }> {
+  return window.hermesDesktop.api<{ ok: boolean; status: OllamaRuntimeStatus }>({
+    ...profileScoped(),
+    path: '/api/local-runtimes/ollama/start',
+    method: 'POST'
+  })
+}
+
+export function stopOllama(): Promise<{ ok: boolean; status: OllamaRuntimeStatus }> {
+  return window.hermesDesktop.api<{ ok: boolean; status: OllamaRuntimeStatus }>({
+    ...profileScoped(),
+    path: '/api/local-runtimes/ollama/stop',
+    method: 'POST'
+  })
+}
+
+export function importGguf(body: GgufImportRequest): Promise<{ ok: boolean; model: OllamaModelShow }> {
+  return window.hermesDesktop.api<{ ok: boolean; model: OllamaModelShow }>({
+    ...profileScoped(),
+    path: '/api/local-models/import-gguf',
+    method: 'POST',
+    body
+  })
+}
+
+export function createModel(body: ModelCreateRequest): Promise<{ ok: boolean }> {
+  return window.hermesDesktop.api<{ ok: boolean }>({
+    ...profileScoped(),
+    path: '/api/local-models/create',
+    method: 'POST',
+    body
+  })
+}
+
+export function showModel(id: string): Promise<OllamaModelShow> {
+  return window.hermesDesktop.api<OllamaModelShow>({
+    ...profileScoped(),
+    path: `/api/local-models/${encodeURIComponent(id)}/show`
+  })
+}
+
+export function activateLocalModel(id: string): Promise<OllamaActivateResult> {
+  return window.hermesDesktop.api<OllamaActivateResult>({
+    ...profileScoped(),
+    path: `/api/local-models/${encodeURIComponent(id)}/activate`,
+    method: 'POST'
+  })
+}
+
+export function setModelThinking(id: string, enabled: boolean): Promise<OllamaThinkingResult> {
+  return window.hermesDesktop.api<OllamaThinkingResult>({
+    ...profileScoped(),
+    path: `/api/local-models/${encodeURIComponent(id)}/thinking`,
+    method: 'POST',
+    body: { enabled }
+  })
+}
+
+export function removeLocalModel(id: string): Promise<{ ok: boolean }> {
+  return window.hermesDesktop.api<{ ok: boolean }>({
+    ...profileScoped(),
+    path: `/api/local-models/${encodeURIComponent(id)}`,
+    method: 'DELETE'
+  })
+}
+
+// --- SSE streams -----------------------------------------------------------
+
+// Stream handles keyed by backend stream id. A single global subscription
+// wires the two preload channels; individual streams fan out to their
+// listeners by id. Module state is renderer-lifetime — a re-home reloads the
+// window, so stale subscriptions can't survive a backend switch.
+const apiStreamListeners = new Map<
+  number,
+  { events: Set<(data: unknown) => void>; done: Set<(error: null | Error) => void> }
+>()
+
+let apiStreamsWired = false
+
+function wireApiStreams(): void {
+  if (apiStreamsWired || !window.hermesDesktop?.onApiStreamEvent || !window.hermesDesktop.onApiStreamDone) {
+    return
+  }
+
+  apiStreamsWired = true
+
+  window.hermesDesktop.onApiStreamEvent(payload => {
+    const entry = apiStreamListeners.get(payload.id)
+    if (!entry) {
+      return
+    }
+    for (const cb of entry.events) {
+      cb(payload.data)
+    }
+  })
+
+  window.hermesDesktop.onApiStreamDone(payload => {
+    const entry = apiStreamListeners.get(payload.id)
+    if (!entry) {
+      return
+    }
+    apiStreamListeners.delete(payload.id)
+    const error = payload.ok ? null : new Error(payload.error || 'Local model stream ended with an error')
+    for (const cb of entry.done) {
+      cb(error)
+    }
+  })
+}
+
+export interface ApiStreamHandle<T> {
+  /** Cancels the backend request (Ollama stops the pull) and unsubscribes. */
+  dispose: () => void
+  /** Subscribe to parsed SSE `data:` payloads. Returns the unsubscribe fn. */
+  onEvent: (cb: (data: T) => void) => () => void
+  /** Terminal callback: null error on clean completion, otherwise the error. */
+  onDone: (cb: (error: null | Error) => void) => () => void
+}
+
+/** Stream a backend SSE endpoint (e.g. Ollama install/pull progress).
+ *  Resolves with a handle once the stream is registered; events arrive
+ *  asynchronously. Throws when the Electron shell predates the bridge. */
+export async function apiStream<T>(request: {
+  path: string
+  method?: string
+  body?: unknown
+}): Promise<ApiStreamHandle<T>> {
+  if (!window.hermesDesktop?.apiStream || !window.hermesDesktop.onApiStreamEvent) {
+    throw new Error('Streaming backend calls are not supported by this Hermes desktop shell.')
+  }
+
+  wireApiStreams()
+
+  const id = await window.hermesDesktop.apiStream({ ...profileScoped(), ...request })
+  const events = new Set<(data: unknown) => void>()
+  const done = new Set<(error: null | Error) => void>()
+  let disposed = false
+
+  apiStreamListeners.set(id, { events, done })
+
+  return {
+    dispose: () => {
+      if (disposed) {
+        return
+      }
+      disposed = true
+      apiStreamListeners.delete(id)
+      void window.hermesDesktop.abortApiStream?.(id)
+    },
+    onEvent: cb => {
+      const wrapped = (data: unknown) => cb(data as T)
+      events.add(wrapped)
+
+      return () => events.delete(wrapped)
+    },
+    onDone: cb => {
+      done.add(cb)
+
+      return () => done.delete(cb)
+    }
+  }
+}
+
+export function ollamaInstall(): Promise<ApiStreamHandle<OllamaInstallProgress>> {
+  return apiStream<OllamaInstallProgress>({
+    path: '/api/local-runtimes/ollama/install',
+    method: 'POST'
+  })
+}
+
+export function pullModel(tag: string): Promise<ApiStreamHandle<OllamaPullProgress>> {
+  return apiStream<OllamaPullProgress>({
+    path: '/api/local-models/pull',
+    method: 'POST',
+    body: { tag }
+  })
+}
+
+export function pullModelFromUrl(url: string, name?: string): Promise<ApiStreamHandle<OllamaPullProgress>> {
+  return apiStream<OllamaPullProgress>({
+    path: '/api/local-models/pull-from-url',
+    method: 'POST',
+    body: { url, ...(name ? { name } : {}) }
   })
 }
 

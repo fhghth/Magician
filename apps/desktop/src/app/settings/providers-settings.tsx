@@ -28,6 +28,7 @@ import { isKeyVar, ProviderKeyRows } from './credential-key-ui'
 import { CustomEndpointsSettings } from './custom-endpoints-settings'
 import { SettingsCategoryHeading, useEnvCredentials } from './env-credentials'
 import { providerGroup, providerMeta, providerPriority } from './helpers'
+import { LocalModelsSettings } from './local-models-settings'
 import { SettingsContent, SettingsSkeleton } from './primitives'
 
 // The embedded terminal (and thus the "run disconnect command" path) only
@@ -45,7 +46,7 @@ function GroupLabel({ children }: { children: ReactNode }) {
 }
 
 // Sub-views surfaced as a sidebar subnav: account sign-in vs raw API keys.
-export const PROVIDER_VIEWS = ['accounts', 'keys', 'custom-endpoints'] as const
+export const PROVIDER_VIEWS = ['accounts', 'keys', 'custom-endpoints', 'local-models'] as const
 
 export type ProviderView = (typeof PROVIDER_VIEWS)[number]
 
@@ -492,6 +493,10 @@ export function ProvidersSettings({
 
   if (view === 'custom-endpoints') {
     return <CustomEndpointsSettings onConfigSaved={onConfigSaved} onMainModelChanged={onMainModelChanged} />
+  }
+
+  if (view === 'local-models') {
+    return <LocalModelsSettings onConfigSaved={onConfigSaved} onMainModelChanged={onMainModelChanged} />
   }
 
   return (

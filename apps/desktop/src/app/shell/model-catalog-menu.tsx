@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Codicon } from '@/components/ui/codicon'
@@ -15,16 +15,19 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger
 } from '@/components/ui/dropdown-menu'
+import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { HighlightMatches } from '@/components/ui/highlight-matches'
 import { usePointerQuiet } from '@/components/ui/keyboard-first'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { HermesGateway } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
+import { useModelPull } from '@/lib/model-pull'
 import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
 import { DEFAULT_REASONING_EFFORT, reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
+import { notify, notifyError } from '@/store/notifications'
 import {
   $visibleModels,
   collapseModelFamilies,
@@ -119,9 +122,21 @@ export function ModelCatalogMenu({
   const { t } = useI18n()
   const copy = t.shell.modelMenu
   const closeMenu = useContext(ModelMenuCloseContext)
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const collapsedProviders = useStoreCollapsed()
   const defaultEffort = useDefaultEffort()
+  // Pull quick action: typing a tag that matches nothing offers to pull it
+  // from Ollama.com; on completion the catalog refreshes and the activated
+  // model appears under the local provider.
+  const modelPull = useModelPull((err, tag) => {
+    if (err) {
+      notifyError(err, t.modelPicker.pullFailed(tag))
+    } else {
+      notify({ kind: 'success', message: t.modelPicker.pullDone(tag) })
+    }
+    void queryClient.invalidateQueries({ queryKey: modelOptionsQueryKey(profile, sessionId) })
+  })
   // Which models the user curated in Edit Models. Read HERE rather than taken
   // as a prop: it's one global preference, so every surface that shows a
   // catalog must show the same shortlist. A per-caller opt-in is how the board
@@ -268,6 +283,14 @@ export function ModelCatalogMenu({
     const row = kbIndex >= 0 ? kbRows[kbIndex] : undefined
 
     if (!row) {
+      // Nothing matches: Enter on the search box toggles the pull quick
+      // action (start, or cancel while one is in flight).
+      if (q && !modelPull.pulling) {
+        void modelPull.pull(q)
+      } else if (modelPull.pulling) {
+        modelPull.cancel()
+      }
+
       return
     }
 
@@ -348,9 +371,40 @@ export function ModelCatalogMenu({
           {error}
         </DropdownMenuItem>
       ) : groups.length === 0 && moaPresets.length === 0 ? (
-        <DropdownMenuItem className={dropdownMenuRow} disabled>
-          {copy.noModels}
-        </DropdownMenuItem>
+        q ? (
+          <DropdownMenuItem
+            className={cn(dropdownMenuRow, 'gap-2 font-mono', modelPull.error && 'text-destructive')}
+            onSelect={event => {
+              event.preventDefault()
+              if (modelPull.pulling) {
+                modelPull.cancel()
+              } else {
+                void modelPull.pull(q)
+              }
+            }}
+          >
+            {modelPull.pulling ? (
+              <GlyphSpinner className="shrink-0" spinner="pulse" />
+            ) : (
+              <Codicon className="shrink-0 text-(--ui-text-tertiary)" name="download" size="0.75rem" />
+            )}
+            <span className="min-w-0 flex-1 truncate">
+              <HighlightMatches
+                query={q}
+                text={modelPull.pulling ? modelPull.label : modelPull.error ? modelPull.error : t.modelPicker.pull(q)}
+              />
+            </span>
+            {modelPull.pulling ? (
+              <span className="shrink-0 text-xs tabular-nums text-(--ui-text-tertiary)">
+                {Math.round(modelPull.progress)}%
+              </span>
+            ) : null}
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem className={dropdownMenuRow} disabled>
+            {copy.noModels}
+          </DropdownMenuItem>
+        )
       ) : (
         <div className={cn('max-h-[max(150px,30dvh)] overflow-y-auto py-0.5', quietRows)} ref={listRef}>
           {groups.map(group => {

@@ -199,6 +199,111 @@ export interface CustomEndpointValidationResponse {
   reachable: boolean
 }
 
+export interface OllamaRuntimeStatus {
+  available: boolean
+  version: string
+  install_path: string
+  models_dir: string
+  host: string
+  port: number
+  running: boolean
+  managed: boolean
+  gpu: string
+}
+
+export interface LocalRuntimesResponse {
+  ollama: OllamaRuntimeStatus
+}
+
+export interface OllamaModel {
+  id: string
+  name: string
+  /** Blob size in bytes (all layers). */
+  size: number
+  /** Total model size in bytes. */
+  model_size: number
+  quant: string
+  parameter_size: string
+  capabilities: string[]
+  status: 'ready'
+  /** Persisted per-model thinking state (present only when the model
+   *  advertises the thinking capability). */
+  thinking?: boolean
+}
+
+export interface LocalModelListResponse {
+  current: {
+    is_local: boolean
+    model: string
+    provider: string
+  }
+  models: OllamaModel[]
+}
+
+export interface ModelPullRequest {
+  tag: string
+}
+
+export interface GgufImportRequest {
+  file_path: string
+  name?: string
+}
+
+export interface UrlImportRequest {
+  url: string
+  name?: string
+}
+
+export interface ModelCreateRequest {
+  name: string
+  modelfile: string
+}
+
+export interface ModelThinkingRequest {
+  enabled: boolean
+}
+
+export interface OllamaModelShow {
+  capabilities: string[]
+  details: Record<string, unknown>
+  id: string
+  model_info: Record<string, unknown>
+  parameters: string
+}
+
+export interface OllamaActivateResult {
+  base_url: string
+  model: string
+  ok: boolean
+  provider: string
+}
+
+export interface OllamaThinkingResult {
+  model: string
+  thinking: boolean
+}
+
+/** SSE stage events from POST /api/local-runtimes/ollama/install. */
+export interface OllamaInstallProgress {
+  stage: string
+  progress: number
+  completed: number
+  total: number
+  error?: string
+  path?: string
+  version?: string
+}
+
+/** SSE progress events from POST /api/local-models/pull (and pull-from-url). */
+export interface OllamaPullProgress {
+  digest: string
+  total: number
+  completed: number
+  progress: number
+  status: string
+  error?: string
+}
+
 export interface MessagingEnvVarInfo {
   advanced: boolean
   description: string
@@ -463,6 +568,10 @@ export interface SessionCreateResponse {
 
 export interface SessionInfo {
   archived?: boolean
+  /** Agent preset this session runs under (persona + tool composition).
+   *  Absent for sessions created before the column existed, or against a
+   *  backend that predates presets. */
+  agent_preset?: null | string
   cwd?: null | string
   /** Git branch checked out in {@link cwd} when the session started/resumed.
    *  The sidebar groups main-checkout sessions by this so feature-branch work

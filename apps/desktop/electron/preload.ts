@@ -105,6 +105,23 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
     set: name => ipcRenderer.invoke('hermes:profile:set', name)
   },
   api: request => ipcRenderer.invoke('hermes:api', request),
+  // SSE stream over the backend REST surface (Ollama install/pull progress).
+  // Invoke resolves with the stream id; parsed `data:` payloads arrive on
+  // hermes:api-stream:event, terminal outcome on hermes:api-stream:done.
+  apiStream: request => ipcRenderer.invoke('hermes:api-stream', request),
+  abortApiStream: id => ipcRenderer.invoke('hermes:api-stream:abort', id),
+  onApiStreamEvent: callback => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('hermes:api-stream:event', listener)
+
+    return () => ipcRenderer.removeListener('hermes:api-stream:event', listener)
+  },
+  onApiStreamDone: callback => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('hermes:api-stream:done', listener)
+
+    return () => ipcRenderer.removeListener('hermes:api-stream:done', listener)
+  },
   notify: payload => ipcRenderer.invoke('hermes:notify', payload),
   requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),
   readFileDataUrl: filePath => ipcRenderer.invoke('hermes:readFileDataUrl', filePath),

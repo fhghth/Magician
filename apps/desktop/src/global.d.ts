@@ -117,6 +117,15 @@ declare global {
         set: (name: string | null) => Promise<DesktopActiveProfile>
       }
       api: <T>(request: HermesApiRequest) => Promise<T>
+      // SSE stream over the backend REST surface (Ollama install/pull
+      // progress). Resolves with the stream id; `data:` payloads arrive on
+      // onApiStreamEvent, terminal outcome on onApiStreamDone. Abort via
+      // abortApiStream. Optional: older Electron shells predate it — callers
+      // must fall back (surface the error, keep polling).
+      apiStream?: (request: HermesApiRequest) => Promise<number>
+      abortApiStream?: (id: number) => Promise<void>
+      onApiStreamEvent?: (callback: (payload: { id: number; data: unknown }) => void) => () => void
+      onApiStreamDone?: (callback: (payload: { id: number; ok: boolean; error?: string }) => void) => () => void
       notify: (payload: HermesNotification) => Promise<boolean>
       requestMicrophoneAccess: () => Promise<boolean>
       readFileDataUrl: (filePath: string) => Promise<string>

@@ -1,17 +1,21 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
+import { useModelPull, type ModelPullState } from '@/lib/model-pull'
 import { modelSearchText } from '@/lib/model-search-text'
 import { currentPickerSelection } from '@/lib/model-status-label'
 import { normalize } from '@/lib/text'
+import { notify, notifyError } from '@/store/notifications'
 import type { ModelOptionProvider, ModelPricing } from '@/types/hermes'
 
 import type { HermesGateway } from '../hermes'
 import { cn } from '../lib/utils'
 import { startManualOnboarding } from '../store/onboarding'
 
+import { Codicon } from './ui/codicon'
+import { GlyphSpinner } from './ui/glyph-spinner'
 import { InlineNotice } from './notifications'
 import { Button } from './ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command'
@@ -50,6 +54,17 @@ export function ModelPickerDialog({
 }: ModelPickerDialogProps) {
   const { t } = useI18n()
   const copy = t.modelPicker
+  const queryClient = useQueryClient()
+  const modelPull = useModelPull((err, tag) => {
+    // A completed pull auto-activates the model (useModelPull); refresh the
+    // catalog so the newly installed tag shows up under the local provider.
+    if (err) {
+      notifyError(err, copy.pullFailed(tag))
+    } else {
+      notify({ kind: 'success', message: copy.pullDone(tag) })
+    }
+    void queryClient.invalidateQueries({ queryKey: modelOptionsQueryKey(profile, sessionId) })
+  })
   // Own the search term so we can filter manually. cmdk's built-in
   // shouldFilter reorders items by its fuzzy-match score (≈alphabetical with
   // an empty query), which destroys the backend's curated order. We disable
@@ -112,8 +127,16 @@ export function ModelPickerDialog({
               currentProvider={optionsProvider || currentProvider}
               error={error}
               loading={loading}
+              onPull={() => {
+                if (modelPull.pulling) {
+                  modelPull.cancel()
+                } else if (search.trim()) {
+                  void modelPull.pull(search)
+                }
+              }}
               onSelectModel={selectModel}
               providers={providers}
+              pullState={modelPull}
               search={search}
             />
           </CommandList>
@@ -138,7 +161,9 @@ function ModelResults({
   providers,
   currentModel,
   currentProvider,
+  onPull,
   onSelectModel,
+  pullState,
   search
 }: {
   loading: boolean
@@ -146,7 +171,10 @@ function ModelResults({
   providers: ModelOptionProvider[]
   currentModel: string
   currentProvider: string
+  /** Toggle pull for the current search term (start, or cancel in flight). */
+  onPull: () => void
   onSelectModel: (provider: ModelOptionProvider, model: string) => void
+  pullState: ModelPullState
   search: string
 }) {
   const { t } = useI18n()
@@ -183,8 +211,21 @@ function ModelResults({
   // "Add provider" footer button, which opens the full onboarding selector.
   const configured = providers.filter(p => (p.models ?? []).length > 0)
 
+  const hasMatches = configured.some(provider => (provider.models ?? []).some(model => matches(provider, model)))
+  const pullTag = q && !hasMatches ? q : null
+
   return (
     <>
+      {pullTag && (
+        <PullRow
+          error={pullState.error}
+          label={pullState.pulling ? pullState.label : pullState.error ? pullState.error : copy.pull(pullTag)}
+          onSelect={onPull}
+          percent={pullState.pulling ? pullState.progress : 0}
+          pulling={pullState.pulling === pullTag}
+          tag={pullTag}
+        />
+      )}
       {configured.map(provider => {
         // Preserve the backend's curated order — filter in place, no re-sort.
         const models = (provider.models ?? []).filter(m => matches(provider, m))
@@ -245,6 +286,42 @@ function ModelResults({
         )
       })}
     </>
+  )
+}
+
+// One row: "Pull <tag> from Ollama.com". Click to start, click again while
+// pulling to cancel; a terminal error is shown inline and clickable to retry.
+function PullRow({
+  error,
+  label,
+  onSelect,
+  percent,
+  pulling,
+  tag
+}: {
+  error: string | null
+  label: string
+  onSelect: () => void
+  percent: number
+  pulling: boolean
+  tag: string
+}) {
+  return (
+    <CommandGroup>
+      <CommandItem className="flex items-center gap-2 pl-6 font-mono" onSelect={onSelect} value={`pull:${tag}`}>
+        {pulling ? (
+          <GlyphSpinner className="shrink-0" spinner="pulse" />
+        ) : (
+          <Codicon className="shrink-0 text-(--ui-text-tertiary)" name="download" size="0.75rem" />
+        )}
+        <span className={cn('min-w-0 flex-1 truncate', error && 'text-destructive')}>
+          <HighlightMatches query={tag} text={label} />
+        </span>
+        {pulling ? (
+          <span className="shrink-0 text-xs tabular-nums text-(--ui-text-tertiary)">{Math.round(percent)}%</span>
+        ) : null}
+      </CommandItem>
+    </CommandGroup>
   )
 }
 
