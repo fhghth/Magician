@@ -83,7 +83,13 @@ export default [
         {
           groups: ['side-effect', 'builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
           order: 'asc',
-          type: 'natural'
+          type: 'natural',
+          // Desktop's import style is blank-line-separated (even inside the
+          // same group), which conflicts with perfectionist v5's default
+          // newlinesInside: 0; ui-tui/apps-shared use consecutive in-group
+          // imports instead. 'ignore' keeps ordering + group separation
+          // enforced and accepts both house styles.
+          newlinesInside: 'ignore'
         }
       ],
       'perfectionist/sort-jsx-props': ['error', { order: 'asc', type: 'natural' }],

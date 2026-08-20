@@ -281,6 +281,7 @@ export function DesktopController() {
   // haven't navigated yet). A dead/deleted id self-clears via the exhausted latch
   // below, so we never boot-loop into an error screen.
   const restoredLastSessionRef = useRef(false)
+  // eslint-disable-next-line no-restricted-syntax -- one-shot cold-start restore latch, not an atom mirror
   useEffect(() => {
     if (restoredLastSessionRef.current) {
       return
@@ -641,6 +642,7 @@ export function DesktopController() {
   const freshSessionRequest = useStore($freshSessionRequest)
   const lastFreshRef = useRef(freshSessionRequest)
 
+  // eslint-disable-next-line no-restricted-syntax -- prev-value tracking to skip the initial request, not a callback-read atom mirror
   useEffect(() => {
     if (freshSessionRequest === lastFreshRef.current) {
       return
@@ -659,6 +661,7 @@ export function DesktopController() {
   const activeGatewayProfile = useStore($activeGatewayProfile)
   const lastGatewayProfileRef = useRef(activeGatewayProfile)
 
+  // eslint-disable-next-line no-restricted-syntax -- prev-value tracking to skip the initial profile, not a callback-read atom mirror
   useEffect(() => {
     if (activeGatewayProfile === lastGatewayProfileRef.current) {
       return
@@ -782,6 +785,7 @@ export function DesktopController() {
   const startWorkSessionRequest = useStore($startWorkSessionRequest)
   const lastStartWorkTokenRef = useRef(startWorkSessionRequest?.token ?? 0)
 
+  // eslint-disable-next-line no-restricted-syntax -- one-shot work-session request token, not an atom mirror
   useEffect(() => {
     if (!startWorkSessionRequest || startWorkSessionRequest.token === lastStartWorkTokenRef.current) {
       return

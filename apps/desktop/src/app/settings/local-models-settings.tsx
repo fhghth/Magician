@@ -4,20 +4,20 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
   activateLocalModel,
+  type ApiStreamHandle,
   createModel,
   getLocalModels,
   getLocalRuntimes,
   importGguf,
   ollamaInstall,
+  type OllamaInstallProgress,
+  type OllamaPullProgress,
   pullModel,
   pullModelFromUrl,
   removeLocalModel,
   setModelThinking,
   startOllama,
-  stopOllama,
-  type ApiStreamHandle,
-  type OllamaInstallProgress,
-  type OllamaPullProgress
+  stopOllama
 } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
@@ -132,6 +132,7 @@ export function LocalModelsSettings({ onConfigSaved, onMainModelChanged }: Local
     }
   }
 
+  // eslint-disable-next-line no-restricted-syntax -- timer-handle ref, not an atom mirror
   useEffect(() => {
     void refresh()
 
@@ -146,9 +147,11 @@ export function LocalModelsSettings({ onConfigSaved, onMainModelChanged }: Local
         window.clearInterval(refreshTimer.current)
         refreshTimer.current = null
       }
+
       streamRef.current?.dispose()
       streamRef.current = null
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once poll; refresh() is a per-render closure over stable setters
   }, [])
 
   // Wire a stream: register the handle, feed progress state, and on terminal
@@ -180,6 +183,7 @@ export function LocalModelsSettings({ onConfigSaved, onMainModelChanged }: Local
 
   function progressFromEvent(data: unknown): StreamProgress {
     const ev = data as { stage?: string; progress?: number; completed?: number; total?: number; status?: string }
+
     const percent =
       (ev.progress != null ? ev.progress : ev.total && ev.completed != null ? ev.completed / ev.total : 0) * 100
 
@@ -200,6 +204,7 @@ export function LocalModelsSettings({ onConfigSaved, onMainModelChanged }: Local
       setInstallProgress,
       err => {
         setBusy(null)
+
         if (err) {
           notifyError(err, lm.install)
           void refresh()

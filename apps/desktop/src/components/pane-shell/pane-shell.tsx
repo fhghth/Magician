@@ -377,6 +377,7 @@ export function Pane({
         ? `${override}px`
         : widthToCss(width, DEFAULT_WIDTH)
 
+  // eslint-disable-next-line no-restricted-syntax -- one-shot pane registration latch, not an atom mirror
   useEffect(() => {
     if (registered.current) {
       return

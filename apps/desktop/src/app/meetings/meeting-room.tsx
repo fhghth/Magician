@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { findMeetingById } from '@/store/meeting'
 
 import { MEETING_ROUTE, navigateToWorkspacePage, sessionRoute } from '../routes'
+
 import { MeetingComposer, MeetingQueueStrip } from './meeting-composer'
 import { budgetBarFraction, meetingStatusLabel, meetingStatusTone } from './meeting-meta'
 import { RoundTable } from './round-table'

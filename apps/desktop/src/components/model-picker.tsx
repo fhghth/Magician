@@ -3,7 +3,7 @@ import { useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
-import { useModelPull, type ModelPullState } from '@/lib/model-pull'
+import { type ModelPullState, useModelPull } from '@/lib/model-pull'
 import { modelSearchText } from '@/lib/model-search-text'
 import { currentPickerSelection } from '@/lib/model-status-label'
 import { normalize } from '@/lib/text'
@@ -14,12 +14,12 @@ import type { HermesGateway } from '../hermes'
 import { cn } from '../lib/utils'
 import { startManualOnboarding } from '../store/onboarding'
 
-import { Codicon } from './ui/codicon'
-import { GlyphSpinner } from './ui/glyph-spinner'
 import { InlineNotice } from './notifications'
 import { Button } from './ui/button'
+import { Codicon } from './ui/codicon'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
+import { GlyphSpinner } from './ui/glyph-spinner'
 import { HighlightMatches } from './ui/highlight-matches'
 import { Skeleton } from './ui/skeleton'
 
@@ -55,6 +55,7 @@ export function ModelPickerDialog({
   const { t } = useI18n()
   const copy = t.modelPicker
   const queryClient = useQueryClient()
+
   const modelPull = useModelPull((err, tag) => {
     // A completed pull auto-activates the model (useModelPull); refresh the
     // catalog so the newly installed tag shows up under the local provider.
@@ -63,8 +64,10 @@ export function ModelPickerDialog({
     } else {
       notify({ kind: 'success', message: copy.pullDone(tag) })
     }
+
     void queryClient.invalidateQueries({ queryKey: modelOptionsQueryKey(profile, sessionId) })
   })
+
   // Own the search term so we can filter manually. cmdk's built-in
   // shouldFilter reorders items by its fuzzy-match score (≈alphabetical with
   // an empty query), which destroys the backend's curated order. We disable

@@ -45,7 +45,7 @@ export function RoundTable({ meeting, strip = false }: { meeting: MeetingProgres
         <CenterBlock meeting={meeting} tone={tone} />
         <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto pb-1">
           {seats.map((seat, idx) => (
-            <SeatCard key={seat} className="w-40 shrink-0" meeting={meeting} name={seat} seq={idx} />
+            <SeatCard className="w-40 shrink-0" key={seat} meeting={meeting} name={seat} seq={idx} />
           ))}
         </div>
       </div>

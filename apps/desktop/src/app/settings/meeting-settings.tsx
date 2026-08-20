@@ -11,7 +11,6 @@ import { useI18n } from '@/i18n'
 import { Users } from '@/lib/icons'
 import { modelOptionsQueryKey } from '@/lib/model-options'
 import { cn } from '@/lib/utils'
-import { notifyError } from '@/store/notifications'
 import {
   $meetingPresets,
   addMeetingPreset,
@@ -19,9 +18,11 @@ import {
   removeMeetingPreset,
   updateMeetingPreset
 } from '@/store/meeting-presets'
+import { notifyError } from '@/store/notifications'
 import { $activeGatewayProfile } from '@/store/profile'
 
 import { setHermesConfigCache, useHermesConfigRecord } from '../hooks/use-config-record'
+
 import { CONTROL_TEXT, EMPTY_SELECT_VALUE } from './constants'
 import { getNested, setNested } from './helpers'
 import { withActive } from './model-settings'
@@ -72,11 +73,13 @@ export function MeetingSettings() {
     }
 
     const prev = config
+
     const next = setNested(
       setNested(config, MEETING_MODEL_PROVIDER_KEY, patch.provider),
       MEETING_MODEL_DEFAULT_KEY,
       patch.default
     )
+
     setHermesConfigCache(next)
 
     try {

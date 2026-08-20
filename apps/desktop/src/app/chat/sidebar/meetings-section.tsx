@@ -7,11 +7,11 @@ import { SidebarGroup, SidebarGroupContent } from '@/components/ui/sidebar'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
-import { allMeetings, type MeetingWithSession, openMeetingDraft, $meetingsBySession } from '@/store/meeting'
+import { $meetingsBySession, allMeetings, type MeetingWithSession, openMeetingDraft } from '@/store/meeting'
 import { $sessions } from '@/store/session'
 
-import { meetingRoute, MEETING_ROUTE, navigateToWorkspacePage } from '../../routes'
 import { budgetBarFraction, meetingStatusLabel, meetingStatusTone } from '../../meetings/meeting-meta'
+import { MEETING_ROUTE, meetingRoute, navigateToWorkspacePage } from '../../routes'
 
 export const SIDEBAR_MEETING_TONE_CLASS: Record<string, string> = {
   live: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-300',
@@ -28,8 +28,7 @@ export function MeetingSidebarSection() {
   const navigate = useNavigate()
   const meetings = useStore($meetingsBySession)
 
-  const bySession = useStore($meetingsBySession)
-  const rows = useMemo(() => allMeetings(), [bySession])
+  const rows = useMemo(() => allMeetings(meetings), [meetings])
   const sessions = useStore($sessions)
 
   const sourceLabel = (row: MeetingWithSession) => {
@@ -122,11 +121,11 @@ function MeetingRow({
       >
         <span className="flex min-w-0 items-center gap-1.5">
           <span
+            aria-hidden="true"
             className={cn(
               'size-1.5 shrink-0 rounded-full',
               tone === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-(--ui-text-quaternary)'
             )}
-            aria-hidden="true"
           />
           <span className="min-w-0 truncate text-[0.8125rem] text-(--ui-text-secondary) group-hover/meeting:text-foreground">
             {meeting.topic || meeting.meetingId}

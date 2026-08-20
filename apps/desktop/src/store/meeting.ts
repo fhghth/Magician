@@ -73,10 +73,10 @@ export interface MeetingWithSession {
  * sidebar (§7.1): live/waiting rooms first, then by newest activity. Terminal
  * meetings sink to the bottom.
  */
-export function allMeetings(): MeetingWithSession[] {
+export function allMeetings(source: Record<string, MeetingProgress[]> = $meetingsBySession.get()): MeetingWithSession[] {
   const out: MeetingWithSession[] = []
 
-  for (const [sid, list] of Object.entries($meetingsBySession.get())) {
+  for (const [sid, list] of Object.entries(source)) {
     for (const meeting of list) {
       out.push({ meeting, sessionId: sid })
     }

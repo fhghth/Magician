@@ -33,6 +33,7 @@ import {
   type PetChangeMeta,
   setChangeEventsAvailable
 } from '@/store/live-sync'
+import { applyMeetingEvent } from '@/store/meeting'
 import { dispatchNativeNotification } from '@/store/native-notifications'
 import { isDiskFullErrorMessage, notify, notifyError } from '@/store/notifications'
 import { requestDesktopOnboarding, requestDesktopOnboardingForCredentialWarning } from '@/store/onboarding'
@@ -60,7 +61,6 @@ import {
   setYoloActive
 } from '@/store/session'
 import { dropSessionState } from '@/store/session-states'
-import { applyMeetingEvent } from '@/store/meeting'
 import { pruneDelegateFallbackSubagents, pruneFinishedSessionSubagents, upsertSubagent } from '@/store/subagents'
 import { clearActiveSessionTodos } from '@/store/todos'
 import { recordToolDiff } from '@/store/tool-diffs'
@@ -77,8 +77,8 @@ import { finalizeInterruptedMessages } from '../use-prompt-actions/rewind'
 
 import {
   hasSessionInfoStatePatch,
-  sessionInfoStatePatch,
   MEETING_EVENT_TYPES,
+  sessionInfoStatePatch,
   SUBAGENT_EVENT_TYPES,
   toTodoPayload
 } from './utils'

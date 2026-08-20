@@ -109,8 +109,8 @@ import {
 import type { SidebarNavItem } from '../../types'
 
 import { SidebarCronJobsSection } from './cron-jobs-section'
-import { MeetingSidebarSection } from './meetings-section'
 import { SidebarLoadMoreRow } from './load-more-row'
+import { MeetingSidebarSection } from './meetings-section'
 import { orderByIds, reconcileOrderIds, resolveManualSessionOrderIds, sameIds } from './order'
 import { ProfileRail } from './profile-switcher'
 import { ProjectDialog } from './project-dialog'

@@ -23,9 +23,9 @@ import type {
   DebugShareResponse,
   ElevenLabsVoicesResponse,
   EnvVarInfo,
+  GgufImportRequest,
   HermesConfig,
   HermesConfigRecord,
-  GgufImportRequest,
   LocalModelListResponse,
   LocalRuntimesResponse,
   LogsResponse,
@@ -169,9 +169,9 @@ export type {
   ElevenLabsVoicesResponse,
   EnvVarInfo,
   GatewayReadyPayload,
+  GgufImportRequest,
   HermesConfig,
   HermesConfigRecord,
-  GgufImportRequest,
   LocalModelListResponse,
   LocalRuntimesResponse,
   LogsResponse,
@@ -966,9 +966,11 @@ function wireApiStreams(): void {
 
   window.hermesDesktop.onApiStreamEvent(payload => {
     const entry = apiStreamListeners.get(payload.id)
+
     if (!entry) {
       return
     }
+
     for (const cb of entry.events) {
       cb(payload.data)
     }
@@ -976,11 +978,14 @@ function wireApiStreams(): void {
 
   window.hermesDesktop.onApiStreamDone(payload => {
     const entry = apiStreamListeners.get(payload.id)
+
     if (!entry) {
       return
     }
+
     apiStreamListeners.delete(payload.id)
     const error = payload.ok ? null : new Error(payload.error || 'Local model stream ended with an error')
+
     for (const cb of entry.done) {
       cb(error)
     }
@@ -1022,6 +1027,7 @@ export async function apiStream<T>(request: {
       if (disposed) {
         return
       }
+
       disposed = true
       apiStreamListeners.delete(id)
       void window.hermesDesktop.abortApiStream?.(id)

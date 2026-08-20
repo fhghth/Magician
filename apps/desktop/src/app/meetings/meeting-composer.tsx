@@ -2,9 +2,8 @@ import * as React from 'react'
 
 import type { GatewayRequester } from '@/app/contrib/types'
 import { Codicon } from '@/components/ui/codicon'
-import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import { useI18n } from '@/i18n'
-import { cn } from '@/lib/utils'
+import { isMissingRpcMethod } from '@/lib/gateway-rpc'
 import type { MeetingProgress } from '@/store/meeting'
 
 import { seatColor } from './meeting-meta'

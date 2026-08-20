@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 
-import { activateLocalModel, pullModel, type ApiStreamHandle } from '@/hermes'
+import { activateLocalModel, type ApiStreamHandle, pullModel } from '@/hermes'
 import { useI18n } from '@/i18n'
 
 /** A pull in flight (or its terminal error), driven by the backend SSE stream. */
@@ -51,8 +51,10 @@ export function useModelPull(onDone?: (err: Error | null, tag: string) => void) 
         handleRef.current = handle
         handle.onEvent(data => {
           const ev = data as { completed?: number; progress?: number; status?: string; total?: number }
+
           const percent =
             (ev.progress != null ? ev.progress : ev.total && ev.completed != null ? ev.completed / ev.total : 0) * 100
+
           setState(prev =>
             prev.pulling === trimmed ? { ...prev, label: ev.status ?? prev.label, progress: percent } : prev
           )
@@ -63,6 +65,7 @@ export function useModelPull(onDone?: (err: Error | null, tag: string) => void) 
           if (err) {
             setState({ pulling: null, progress: 0, label: '', error: err.message })
             finish(err, trimmed)
+
             return
           }
 

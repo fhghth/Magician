@@ -60,8 +60,9 @@ function unpackedDirName(platform) {
  * (injectable `statSync`) so this stays unit-testable without a real filesystem.
  */
 function isNsisLayout(execPath, { existsSync = fs.existsSync } = {}) {
-  if (process.platform !== 'win32') return false
+  if (process.platform !== 'win32') {return false}
   const exeDir = path.dirname(String(execPath || ''))
+
   try {
     return existsSync(path.join(exeDir, 'data'))
   } catch {

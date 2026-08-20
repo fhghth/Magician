@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
-  MEETING_PRESETS_STORAGE_KEY,
   $meetingPresets,
   addMeetingPreset,
   getMeetingPreset,
+  MEETING_PRESETS_STORAGE_KEY,
   removeMeetingPreset,
   sanitizePresets,
   updateMeetingPreset

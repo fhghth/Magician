@@ -84,7 +84,7 @@ function IssueBlockView({ meeting, onExpand }: { meeting: MeetingProgress; onExp
           onClick={() => setCollapsed(value => !value)}
           type="button"
         >
-          <span className="size-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-emerald-500" />
           <span className="min-w-0 flex-1 truncate text-xs font-medium text-(--ui-text-primary)">
             {m.issueOpen}
             {meeting.topic ? ` · ${meeting.topic}` : ''}
@@ -104,9 +104,9 @@ function IssueBlockView({ meeting, onExpand }: { meeting: MeetingProgress; onExp
             {meeting.turns.map((turn, idx) => (
               <TurnRow
                 key={`${turn.seat}-${turn.seq}`}
+                lastTurn={idx === meeting.turns.length - 1}
                 meeting={meeting}
                 turn={turn}
-                lastTurn={idx === meeting.turns.length - 1}
               />
             ))}
             {meeting.turns.length === 0 ? (
@@ -120,7 +120,7 @@ function IssueBlockView({ meeting, onExpand }: { meeting: MeetingProgress; onExp
       {decided ? (
         <section className="overflow-hidden rounded-lg border border-(--ui-stroke-secondary)">
           <header className="flex items-center gap-2 px-3 py-2">
-            <span className="size-2 shrink-0 rounded-full bg-muted-foreground" aria-hidden="true" />
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-muted-foreground" />
             <span className="min-w-0 flex-1 truncate text-xs font-medium text-(--color-text-primary)">
               {m.issueDecided}
             </span>
@@ -157,11 +157,11 @@ function FullRecordView({ meeting, onCollapse }: { meeting: MeetingProgress; onC
       </p>
       {meeting.turns.map((turn, idx) => (
         <TurnRow
+          full
           key={`${turn.seat}-${turn.seq}`}
+          lastTurn={idx === meeting.turns.length - 1}
           meeting={meeting}
           turn={turn}
-          lastTurn={idx === meeting.turns.length - 1}
-          full
         />
       ))}
       {meeting.turns.length === 0 ? (

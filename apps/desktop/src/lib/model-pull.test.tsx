@@ -1,9 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { activateLocalModel, type ApiStreamHandle, pullModel } from '@/hermes'
 import { I18nProvider } from '@/i18n'
-import { activateLocalModel, pullModel, type ApiStreamHandle } from '@/hermes'
-import type { ReactNode } from 'react'
 
 import { useModelPull } from './model-pull'
 
@@ -18,6 +19,7 @@ const mockedActivate = vi.mocked(activateLocalModel)
 /** A controllable SSE handle: tests drive events and completion by hand. */
 function makeHandle() {
   const listeners = { done: new Set<(err: Error | null) => void>(), events: new Set<(data: unknown) => void>() }
+
   const handle: ApiStreamHandle<unknown> = {
     dispose: vi.fn(),
     onDone: cb => {

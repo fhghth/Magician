@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  $meetingsBySession,
   activeMeetingCount,
   allMeetings,
   applyMeetingEvent,
-  $meetingsBySession,
   clearSessionMeetings,
   findMeetingById,
   sessionMeetings

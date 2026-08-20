@@ -1,5 +1,5 @@
-import * as React from 'react'
 import { useStore } from '@nanostores/react'
+import * as React from 'react'
 import { useNavigate } from 'react-router'
 
 import type { GatewayRequester } from '@/app/contrib/types'
@@ -66,6 +66,7 @@ export function NewMeetingDialog({ requestGateway }: { requestGateway: GatewayRe
 
   const sessions = useStore($sessions)
   const presets = useStore($meetingPresets)
+
   const recentSessions = React.useMemo(
     () => [...sessions].sort((a, b) => (b.last_active ?? 0) - (a.last_active ?? 0)).slice(0, 12),
     [sessions]
@@ -78,11 +79,13 @@ export function NewMeetingDialog({ requestGateway }: { requestGateway: GatewayRe
   const [budgetRounds, setBudgetRounds] = React.useState('')
   const [budgetSeconds, setBudgetSeconds] = React.useState('')
   const [budgetTokens, setBudgetTokens] = React.useState('')
+
   const [seats, setSeats] = React.useState<DraftSeat[]>([
     { name: '', objective: '', role: 'facilitator' },
     { name: '', objective: '', role: 'advocate' },
     { name: '', objective: '', role: 'critic' }
   ])
+
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState('')
 
@@ -152,12 +155,12 @@ export function NewMeetingDialog({ requestGateway }: { requestGateway: GatewayRe
 
   return (
     <Dialog
-      open={open}
       onOpenChange={next => {
         if (!next) {
           close()
         }
       }}
+      open={open}
     >
       <DialogContent className="max-w-2xl">
         <DialogHeader>

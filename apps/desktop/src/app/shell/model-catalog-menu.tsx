@@ -27,7 +27,6 @@ import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
 import { DEFAULT_REASONING_EFFORT, reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
-import { notify, notifyError } from '@/store/notifications'
 import {
   $visibleModels,
   collapseModelFamilies,
@@ -37,6 +36,7 @@ import {
   modelVisibilityKey,
   setModelVisibilityOpen
 } from '@/store/model-visibility'
+import { notify, notifyError } from '@/store/notifications'
 import { $collapsedProviders, toggleCollapsedProvider } from '@/store/provider-collapse'
 import { $defaultReasoningEffort } from '@/store/session'
 import type { ModelOptionProvider, ModelOptionsResponse } from '@/types/hermes'
@@ -126,6 +126,7 @@ export function ModelCatalogMenu({
   const [search, setSearch] = useState('')
   const collapsedProviders = useStoreCollapsed()
   const defaultEffort = useDefaultEffort()
+
   // Pull quick action: typing a tag that matches nothing offers to pull it
   // from Ollama.com; on completion the catalog refreshes and the activated
   // model appears under the local provider.
@@ -135,8 +136,10 @@ export function ModelCatalogMenu({
     } else {
       notify({ kind: 'success', message: t.modelPicker.pullDone(tag) })
     }
+
     void queryClient.invalidateQueries({ queryKey: modelOptionsQueryKey(profile, sessionId) })
   })
+
   // Which models the user curated in Edit Models. Read HERE rather than taken
   // as a prop: it's one global preference, so every surface that shows a
   // catalog must show the same shortlist. A per-caller opt-in is how the board
@@ -376,6 +379,7 @@ export function ModelCatalogMenu({
             className={cn(dropdownMenuRow, 'gap-2 font-mono', modelPull.error && 'text-destructive')}
             onSelect={event => {
               event.preventDefault()
+
               if (modelPull.pulling) {
                 modelPull.cancel()
               } else {
