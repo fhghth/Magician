@@ -17,6 +17,7 @@ import os
 from typing import Callable, Optional
 
 from tools.registry import registry
+from tools.output_schema import ToolOutputSpec
 
 # Set by the GUI gateway (tui_gateway) at session wiring. Receives
 # ``(task_id, primary_path, project_name)`` and re-anchors that session's
@@ -28,6 +29,33 @@ _workspace_callback: Optional[Callable[[str, str, str], None]] = None
 def set_project_workspace_callback(fn: Optional[Callable[[str, str, str], None]]) -> None:
     global _workspace_callback
     _workspace_callback = fn
+
+
+_PROJECT_MUTATION_OUTPUT_SPEC = ToolOutputSpec(
+    # create/switch return {success, id, slug, name, primary_path} or
+    # {success: False, error}.
+    schema={
+        "type": "object",
+        "required": ["success"],
+        "properties": {
+            "success": {"type": "boolean"},
+            "error": {"type": ["string", "null"]},
+            "id": {"type": ["string", "null"]},
+            "slug": {"type": ["string", "null"]},
+            "name": {"type": ["string", "null"]},
+            "primary_path": {"type": ["string", "null"]},
+        },
+    },
+    render=lambda value, args: json.dumps({
+        **value,
+        "_rendered": (
+            f"Project {'switch' if 'project' in args else 'create'} "
+            f"{'ok' if value.get('success') else 'failed'}"
+            + (f" — {value.get('name', '')} ({value.get('primary_path') or 'no folder'})"
+               if value.get("success") else f" — {value.get('error')}")
+        ),
+    }, ensure_ascii=False),
+)
 
 
 def _primary_path(proj) -> Optional[str]:
@@ -140,6 +168,36 @@ registry.register(
         "parameters": {"type": "object", "properties": {}},
     },
     handler=lambda args, **kw: project_list(task_id=kw.get("task_id")),
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "required": ["projects"],
+            "properties": {
+                "active_id": {"type": ["string", "null"]},
+                "projects": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "slug": {"type": "string"},
+                            "name": {"type": "string"},
+                            "primary_path": {"type": ["string", "null"]},
+                            "active": {"type": "boolean"},
+                        },
+                    },
+                },
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": "\n".join(
+                f"- {'*' if p.get('active') else ' '} {p.get('name', '?')} "
+                f"({p.get('slug', '')}) — {p.get('primary_path') or 'no folder'}"
+                for p in value.get("projects", [])
+            ),
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -165,6 +223,7 @@ registry.register(
     handler=lambda args, **kw: project_create(
         name=args.get("name", ""), path=args.get("path"), task_id=kw.get("task_id")
     ),
+    output_spec=_PROJECT_MUTATION_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -186,4 +245,5 @@ registry.register(
         },
     },
     handler=lambda args, **kw: project_switch(project=args.get("project", ""), task_id=kw.get("task_id")),
+    output_spec=_PROJECT_MUTATION_OUTPUT_SPEC,
 )

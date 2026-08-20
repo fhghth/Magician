@@ -323,6 +323,82 @@ TODO_SCHEMA = {
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
+
+# P4 harness alignment: declarative output contract for the todo tool.
+# The canonical result is structured (todos + summary); the render function
+# produces a concise model-facing view that highlights active items without
+# dumping the full JSON every call.
+_TODO_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": ["todos", "summary"],
+    "properties": {
+        "todos": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "content", "status"],
+                "properties": {
+                    "id": {"type": "string"},
+                    "content": {"type": "string"},
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "completed", "cancelled"],
+                    },
+                },
+            },
+        },
+        "summary": {
+            "type": "object",
+            "required": ["total", "pending", "in_progress", "completed", "cancelled"],
+            "properties": {
+                "total": {"type": "integer"},
+                "pending": {"type": "integer"},
+                "in_progress": {"type": "integer"},
+                "completed": {"type": "integer"},
+                "cancelled": {"type": "integer"},
+            },
+        },
+    },
+}
+
+
+def _render_todo_output(value: dict, args: dict) -> str:
+    """Render the canonical todo result into a concise model-facing string."""
+    items = value.get("todos", [])
+    summary = value.get("summary", {})
+    if not items:
+        return json.dumps({"todos": [], "summary": summary}, ensure_ascii=False)
+    # Highlight in-progress and pending items; completed/cancelled are compact.
+    lines = []
+    for item in items:
+        status = item.get("status", "pending")
+        marker = {
+            "in_progress": "▶",
+            "pending": "○",
+            "completed": "✓",
+            "cancelled": "✗",
+        }.get(status, "○")
+        lines.append(f"{marker} [{item.get('id', '?')}] {item.get('content', '')}")
+    summary_str = (
+        f"total={summary.get('total', 0)} "
+        f"pending={summary.get('pending', 0)} "
+        f"in_progress={summary.get('in_progress', 0)} "
+        f"completed={summary.get('completed', 0)} "
+        f"cancelled={summary.get('cancelled', 0)}"
+    )
+    return json.dumps({
+        "todos": items,
+        "summary": summary,
+        "_rendered": "\n".join(lines),
+        "_summary": summary_str,
+    }, ensure_ascii=False)
+
+
+TODO_OUTPUT_SPEC = ToolOutputSpec(
+    schema=_TODO_OUTPUT_SCHEMA,
+    render=_render_todo_output,
+)
 
 registry.register(
     name="todo",
@@ -332,4 +408,5 @@ registry.register(
         todos=args.get("todos"), merge=args.get("merge", False), store=kw.get("store")),
     check_fn=check_todo_requirements,
     emoji="📋",
+    output_spec=TODO_OUTPUT_SPEC,
 )

@@ -617,6 +617,18 @@ def build_turn_context(
 
     active_system_prompt = agent._cached_system_prompt
 
+    # ── Skills catalog injection (P1: aligned with deepseek-harness) ──
+    # The available-skills index is published as a user message (not part of
+    # the system prompt) so the system prompt stays byte-stable for prompt
+    # caching.  Inserted before the current user message so the model sees
+    # the catalog before the actual question.  Digest-gated: an unchanged
+    # catalog is not republished on subsequent turns.
+    try:
+        from agent.skill_catalog import maybe_inject_catalog
+        maybe_inject_catalog(agent, messages, user_message_idx=current_turn_user_idx)
+    except Exception as _catalog_exc:
+        logger.debug("skill catalog injection failed (non-fatal): %s", _catalog_exc)
+
     # Create the DB session row now that _cached_system_prompt is populated, so
     # the persisted snapshot is written non-NULL on the first turn (Issue
     # #45499). Idempotent: _ensure_db_session() no-ops once the row exists.

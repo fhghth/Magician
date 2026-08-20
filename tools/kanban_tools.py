@@ -36,6 +36,7 @@ from typing import Any, Optional
 from agent.redact import redact_sensitive_text
 from hermes_cli.goals import judge_goal
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from hermes_cli.config import cfg_get, load_config
 
 logger = logging.getLogger(__name__)
@@ -2133,6 +2134,37 @@ registry.register(
     handler=_handle_show,
     check_fn=_check_kanban_mode,
     emoji="📋",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_show has task-detail and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "task": {"type": "object"},
+                "parents": {"type": "array"},
+                "children": {"type": "array"},
+                "comments": {"type": "array"},
+                "events": {"type": "array"},
+                "runs": {"type": "array"},
+                "worker_context": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban task: {value.get('task', {}).get('id', '?')} — "
+                f"{value.get('task', {}).get('title', '?')} "
+                f"[{value.get('task', {}).get('status', '?')}]"
+                + (f" (assignee: {value.get('task', {}).get('assignee', '')})" if value.get('task', {}).get('assignee') else "")
+                + (f" (priority: {value.get('task', {}).get('priority', '')})" if value.get('task', {}).get('priority') else "")
+                + f"\n  parents: {len(value.get('parents', []))}, children: {len(value.get('children', []))}"
+                + f", comments: {len(value.get('comments', []))}, events: {len(value.get('events', []))}"
+                + f", runs: {len(value.get('runs', []))}"
+            ) if value.get("task") else
+            (f"Kanban show failed: {value.get('error', 'unknown error')}" if value.get("error") else "Show failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2142,6 +2174,38 @@ registry.register(
     handler=_handle_list,
     check_fn=_check_kanban_orchestrator_mode,
     emoji="📋",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_list has task-listing and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "tasks": {"type": "array", "items": {"type": "object"}},
+                "count": {"type": "integer"},
+                "limit": {"type": "integer"},
+                "truncated": {"type": "boolean"},
+                "next_limit": {"type": ["integer", "null"]},
+                "promoted": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban tasks: {value.get('count', len(value.get('tasks', [])))} listed"
+                + (f" (limit={value.get('limit', '?')})" if value.get("limit") else "")
+                + (f" [truncated, next_limit={value.get('next_limit', '?')}]" if value.get("truncated") else "")
+                + (f" [promoted: {value.get('promoted', 0)}]" if value.get("promoted") else "")
+                + "\n" + "\n".join(
+                    f"  [{t.get('id', '?')}] {t.get('title', '?')} "
+                    f"[{t.get('status', '?')}]"
+                    + (f" (assignee: {t.get('assignee', '')})" if t.get('assignee') else "")
+                    for t in value.get("tasks", [])[:10]
+                )
+            ) if value.get("tasks") is not None else
+            (f"Kanban list failed: {value.get('error', 'unknown error')}" if value.get("error") else "List failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2151,6 +2215,27 @@ registry.register(
     handler=_handle_complete,
     check_fn=_check_kanban_mode,
     emoji="✔",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_complete has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "run_id": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban task completed: {value.get('task_id', '?')}"
+                + (f" (run_id={value.get('run_id', '')})" if value.get("run_id") else "")
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban complete failed: {value.get('error', 'unknown error')}" if value.get("error") else "Complete failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2160,6 +2245,31 @@ registry.register(
     handler=_handle_block,
     check_fn=_check_kanban_mode,
     emoji="⏸",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_block has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "run_id": {"type": ["string", "null"]},
+                "status": {"type": "string"},
+                "block_kind": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban task blocked: {value.get('task_id', '?')} "
+                f"[status={value.get('status', 'blocked')}]"
+                + (f" (kind={value.get('block_kind', '')})" if value.get("block_kind") else "")
+                + (f" (run_id={value.get('run_id', '')})" if value.get("run_id") else "")
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban block failed: {value.get('error', 'unknown error')}" if value.get("error") else "Block failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2169,6 +2279,25 @@ registry.register(
     handler=_handle_heartbeat,
     check_fn=_check_kanban_mode,
     emoji="💓",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_heartbeat has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban heartbeat: {value.get('task_id', '?')}"
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban heartbeat failed: {value.get('error', 'unknown error')}" if value.get("error") else "Heartbeat failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2178,6 +2307,27 @@ registry.register(
     handler=_handle_comment,
     check_fn=_check_kanban_mode,
     emoji="💬",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_comment has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "comment_id": {"type": ["string", "integer", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban comment added: task={value.get('task_id', '?')}, "
+                f"comment_id={value.get('comment_id', '?')}"
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban comment failed: {value.get('error', 'unknown error')}" if value.get("error") else "Comment failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2187,6 +2337,29 @@ registry.register(
     handler=_handle_attach,
     check_fn=_check_kanban_mode,
     emoji="📎",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_attach has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "attachment_id": {"type": ["string", "integer", "null"]},
+                "size": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban attachment added: task={value.get('task_id', '?')}, "
+                f"attachment_id={value.get('attachment_id', '?')}, "
+                f"size={value.get('size', '?')} bytes"
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban attach failed: {value.get('error', 'unknown error')}" if value.get("error") else "Attach failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2196,6 +2369,29 @@ registry.register(
     handler=_handle_attach_url,
     check_fn=_check_kanban_mode,
     emoji="📎",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_attach_url has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "attachment_id": {"type": ["string", "integer", "null"]},
+                "size": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban URL attachment added: task={value.get('task_id', '?')}, "
+                f"attachment_id={value.get('attachment_id', '?')}, "
+                f"size={value.get('size', '?')} bytes"
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban attach_url failed: {value.get('error', 'unknown error')}" if value.get("error") else "Attach URL failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2205,6 +2401,50 @@ registry.register(
     handler=_handle_attachments,
     check_fn=_check_kanban_mode,
     emoji="📎",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_attachments has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": ["string", "integer"]},
+                            "filename": {"type": "string"},
+                            "content_type": {"type": ["string", "null"]},
+                            "size": {"type": "integer"},
+                            "uploaded_by": {"type": ["string", "null"]},
+                            "stored_path": {"type": ["string", "null"]},
+                            "created_at": {"type": ["string", "null"]},
+                        },
+                    },
+                },
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban attachments for task {value.get('task_id', '?')}: "
+                f"{len(value.get('attachments', []))} file(s)"
+                + (
+                    " — " + ", ".join(
+                        f"{a.get('filename', '?')} ({a.get('size', '?')} bytes)"
+                        for a in value.get("attachments", [])[:3]
+                    )
+                    + ("..." if len(value.get("attachments", [])) > 3 else "")
+                    if value.get("attachments")
+                    else ""
+                )
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban attachments failed: {value.get('error', 'unknown error')}" if value.get("error") else "List attachments failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2214,6 +2454,34 @@ registry.register(
     handler=_handle_create,
     check_fn=_check_kanban_mode,
     emoji="➕",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_create has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "status": {"type": ["string", "null"]},
+                "workspace_kind": {"type": ["string", "null"]},
+                "workspace_path": {"type": ["string", "null"]},
+                "project_id": {"type": ["string", "null"]},
+                "subscribed": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban task created: {value.get('task_id', '?')} "
+                f"[{value.get('status', '?')}]"
+                + (f" (workspace={value.get('workspace_kind', '')})" if value.get("workspace_kind") else "")
+                + (f" (project={value.get('project_id', '')})" if value.get("project_id") else "")
+                + (f" [subscribed]" if value.get("subscribed") else "")
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban create failed: {value.get('error', 'unknown error')}" if value.get("error") else "Create failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2223,6 +2491,27 @@ registry.register(
     handler=_handle_unblock,
     check_fn=_check_kanban_orchestrator_mode,
     emoji="▶",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_unblock has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "task_id": {"type": "string"},
+                "status": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban task unblocked: {value.get('task_id', '?')} "
+                f"[status={value.get('status', '?')}]"
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban unblock failed: {value.get('error', 'unknown error')}" if value.get("error") else "Unblock failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -2232,4 +2521,25 @@ registry.register(
     handler=_handle_link,
     check_fn=_check_kanban_mode,
     emoji="🔗",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: kanban_link has ok and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "ok": {"type": "boolean"},
+                "parent_id": {"type": "string"},
+                "child_id": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Kanban tasks linked: parent={value.get('parent_id', '?')} "
+                f"→ child={value.get('child_id', '?')}"
+            ) if value.get("ok", value.get("success", False)) else
+            (f"Kanban link failed: {value.get('error', 'unknown error')}" if value.get("error") else "Link failed")
+        }, ensure_ascii=False),
+    ),
 )

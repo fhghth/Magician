@@ -3335,6 +3335,7 @@ if __name__ == "__main__":
 # Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry
+from tools.output_schema import ToolOutputSpec
 
 TERMINAL_SCHEMA = {
     "name": "terminal",
@@ -3403,4 +3404,39 @@ registry.register(
     check_fn=check_terminal_requirements,
     emoji="💻",
     max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: terminal has foreground and background return
+        # shapes, plus optional cwd/truncation metadata.  We validate the
+        # common fields and allow extra properties.
+        schema={
+            "type": "object",
+            "properties": {
+                "output": {"type": "string"},
+                "exit_code": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "cwd": {"type": "string"},
+                "output_total_chars": {"type": "integer"},
+                "full_output_path": {"type": "string"},
+                "truncation_note": {"type": "string"},
+                # Background process fields
+                "pid": {"type": "integer"},
+                "session_id": {"type": "string"},
+                "background": {"type": "boolean"},
+                "command": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                # Foreground shape
+                f"$ {args.get('command', '')}\n"
+                f"(exit: {value.get('exit_code', '?')})"
+                + (f" [cwd: {value['cwd']}]" if value.get("cwd") else "")
+                + (f" [truncated: {value.get('output_total_chars')} chars total → {value.get('full_output_path')}]" if value.get("full_output_path") else "")
+                + "\n" + (value.get("output", "")[:500] if value.get("output") else "(no output)")
+            ) if "exit_code" in value else
+            # Background shape
+            (f"Background process started: pid={value.get('pid', '?')}, session={value.get('session_id', '?')}" if value.get("background") or value.get("pid") else "")
+        }, ensure_ascii=False),
+    ),
 )

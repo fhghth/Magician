@@ -1465,6 +1465,7 @@ if __name__ == "__main__":
 # Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 VISION_ANALYZE_SCHEMA = {
     "name": "vision_analyze",
@@ -1543,6 +1544,28 @@ registry.register(
     check_fn=check_vision_requirements,
     is_async=True,
     emoji="👁️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: vision_analyze has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "analysis": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "image_url": {"type": "string"},
+                "model_used": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Vision analysis ({'success' if value.get('success', True) else 'failed'}): "
+                f"{len(value.get('analysis', ''))} chars"
+                + "\n" + value.get("analysis", "")[:500]
+            ) if value.get("analysis") else
+            (f"Vision analysis failed: {value.get('error', 'unknown error')}" if value.get("error") else "No analysis")
+        }, ensure_ascii=False),
+    ),
 )
 
 
@@ -1922,4 +1945,26 @@ registry.register(
     check_fn=check_vision_requirements,
     is_async=True,
     emoji="🎬",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: video_analyze returns {success, analysis}
+        # on success or {success: False, error} on failure.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "analysis": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Video analysis ({'success' if value.get('success', True) else 'failed'}): "
+                f"{len(value.get('analysis', ''))} chars"
+                + "\n" + value.get("analysis", "")[:500]
+                if value.get("analysis") else
+                (f"Video analysis failed: {value.get('error', 'unknown error')}" if value.get("error") else "No analysis")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

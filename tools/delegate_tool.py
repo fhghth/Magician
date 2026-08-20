@@ -1518,6 +1518,12 @@ def _build_child_agent(
             fallback_model=parent_fallback,
             enabled_toolsets=child_toolsets,
             disabled_toolsets=child_disabled_toolsets,
+            # Inherit parent's preset (harness composeFrom semantics): the
+            # child shares the same standing-mount composition (toolset
+            # ensure/exclude, skill allow/deny, persona).  The child's own
+            # child_toolsets (role-filtered from parent) are merged with the
+            # preset's ensure/exclude at agent-init time.
+            agent_preset=getattr(parent_agent, "_agent_preset_id", None),
             quiet_mode=True,
             ephemeral_system_prompt=child_prompt,
             log_prefix=f"[subagent-{task_index}]",
@@ -3852,6 +3858,7 @@ DELEGATE_TASK_SCHEMA = {
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 
 def _model_background_value(args: dict, parent_agent=None) -> bool:
@@ -3909,4 +3916,59 @@ registry.register(
     check_fn=check_delegate_requirements,
     emoji="🔀",
     dynamic_schema_overrides=_build_dynamic_schema_overrides,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: delegate_task has sync, background, and error
+        # return shapes.  We validate common fields and allow extra properties.
+        schema={
+            "type": "object",
+            "properties": {
+                # Sync shape
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "task_index": {"type": "integer"},
+                            "status": {"type": "string"},
+                            "summary": {"type": ["string", "null"]},
+                            "error": {"type": ["string", "null"]},
+                            "api_calls": {"type": "integer"},
+                            "duration_seconds": {"type": "number"},
+                            "live_transcript": {"type": "string"},
+                            "_child_role": {"type": ["string", "null"]},
+                        },
+                    },
+                },
+                "total_duration_seconds": {"type": "number"},
+                "live_transcripts": {"type": "array", "items": {"type": "string"}},
+                # Background shape
+                "delegation_id": {"type": "string"},
+                "status": {"type": "string"},
+                "tasks": {"type": "array"},
+                "note": {"type": "string"},
+                # Error shape
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                # Sync shape
+                f"Delegation complete: {len(value.get('results', []))} task(s) in "
+                f"{value.get('total_duration_seconds', '?')}s"
+                + "\n" + "\n".join(
+                    f"  [{r.get('task_index', '?')+1}] {r.get('status', '?')}: "
+                    f"{(r.get('summary') or r.get('error') or '')[:100]}"
+                    for r in value.get("results", [])[:5]
+                )
+            ) if "results" in value else
+            # Background shape
+            (f"Background delegation dispatched: id={value.get('delegation_id', '?')}, "
+             f"status={value.get('status', '?')}"
+             + (f", tasks={len(value.get('tasks', []))}" if value.get("tasks") else ""))
+            if value.get("delegation_id") else
+            # Error shape
+            (f"Delegation error: {value.get('error', 'unknown')}" if value.get("error") else "")
+        }, ensure_ascii=False),
+    ),
 )

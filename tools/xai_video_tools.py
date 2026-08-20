@@ -13,6 +13,7 @@ from plugins.video_gen.xai import (
     run_xai_video_extend,
 )
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 
 def _configured_for_xai_video() -> bool:
@@ -186,6 +187,30 @@ def _handle_xai_video_extend(args: Dict[str, Any], **_kw: Any) -> str:
     return json.dumps(result)
 
 
+_XAI_VIDEO_OUTPUT_SPEC = ToolOutputSpec(
+    # Permissive schema: results come from the xai video plugin's
+    # run_xai_video_edit/extend (success shapes carry video/public_url,
+    # failures carry error); tool_error paths are covered by `error`.
+    schema={
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "error": {"type": ["string", "null"]},
+            "video": {"type": ["string", "null"]},
+            "public_url": {"type": ["string", "null"]},
+            "model": {"type": ["string", "null"]},
+        },
+    },
+    render=lambda value, args: json.dumps({
+        **value,
+        "_rendered": (
+            f"xAI video {args.get('action', 'edit')} "
+            f"{'failed' if value.get('error') else 'ok'}"
+            + (f": {value.get('error')}" if value.get("error") else "")
+        ),
+    }, ensure_ascii=False),
+)
+
 registry.register(
     name="xai_video_edit",
     toolset="video_gen",
@@ -195,6 +220,7 @@ registry.register(
     requires_env=[],
     is_async=False,
     emoji="video",
+    output_spec=_XAI_VIDEO_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -206,4 +232,5 @@ registry.register(
     requires_env=[],
     is_async=False,
     emoji="video",
+    output_spec=_XAI_VIDEO_OUTPUT_SPEC,
 )

@@ -36,6 +36,7 @@ import time
 from typing import Optional
 
 from tools.registry import registry
+from tools.output_schema import ToolOutputSpec
 from tools.managed_tool_gateway import (
     build_managed_media_uploader,
     managed_gateway_auth_headers,
@@ -1182,6 +1183,36 @@ field describes intent and often overstates what the render preserved.
 # Registration (auto-discovered: top-level registry.register calls)
 # ---------------------------------------------------------------------------
 
+_BFL_FLUX3_OUTPUT_SPEC = ToolOutputSpec(
+    # Permissive schema: generate tools return {result, details} where
+    # details carries the gateway's {id, status, ...} payload; get_result
+    # returns the job status or a still-generating {result, details};
+    # failures are {error} / {error, transport_error} / {error, needs_reauth}.
+    schema={
+        "type": "object",
+        "properties": {
+            "result": {"type": ["string", "null"]},
+            "details": {"type": ["object", "null"]},
+            "error": {"type": ["string", "null"]},
+            "transport_error": {"type": "boolean"},
+            "needs_reauth": {"type": "boolean"},
+        },
+    },
+    render=lambda value, args: json.dumps({
+        **value,
+        "_rendered": (
+            f"BFL flux3 {'error' if value.get('error') else 'ok'}: "
+            + (
+                f"{value.get('error')}"
+                if value.get("error") else
+                f"{value.get('result', '')[:200]} "
+                f"(job {value.get('details', {}).get('id', '?')}, "
+                f"status {value.get('details', {}).get('status', '?')})"
+            )
+        ),
+    }, ensure_ascii=False),
+)
+
 registry.register(
     name="bfl_flux3_text_to_video",
     toolset=_TOOLSET,
@@ -1191,6 +1222,7 @@ registry.register(
     requires_env=[],
     is_async=True,
     emoji="🎬",
+    output_spec=_BFL_FLUX3_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -1202,6 +1234,7 @@ registry.register(
     requires_env=[],
     is_async=True,
     emoji="🎬",
+    output_spec=_BFL_FLUX3_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -1213,6 +1246,7 @@ registry.register(
     requires_env=[],
     is_async=True,
     emoji="🎬",
+    output_spec=_BFL_FLUX3_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -1224,6 +1258,7 @@ registry.register(
     requires_env=[],
     is_async=True,
     emoji="🎬",
+    output_spec=_BFL_FLUX3_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -1235,6 +1270,7 @@ registry.register(
     requires_env=[],
     is_async=True,
     emoji="🎬",
+    output_spec=_BFL_FLUX3_OUTPUT_SPEC,
 )
 
 registry.register(

@@ -164,11 +164,13 @@ class ToolEntry:
         "name", "toolset", "schema", "handler", "check_fn",
         "requires_env", "is_async", "description", "emoji",
         "max_result_size_chars", "dynamic_schema_overrides",
+        "output_spec",
     )
 
     def __init__(self, name, toolset, schema, handler, check_fn,
                  requires_env, is_async, description, emoji,
-                 max_result_size_chars=None, dynamic_schema_overrides=None):
+                 max_result_size_chars=None, dynamic_schema_overrides=None,
+                 output_spec=None):
         self.name = name
         self.toolset = toolset
         self.schema = schema
@@ -187,6 +189,11 @@ class ToolEntry:
         # on every get_definitions() call; results are merged shallow on top
         # of the base schema before the {"type": "function", ...} wrap.
         self.dynamic_schema_overrides = dynamic_schema_overrides
+        # P4 harness alignment: optional ToolOutputSpec declaring output schema
+        # validation + render separation. When None, the handler returns a raw
+        # JSON string (legacy behavior). When set, dispatch() validates the
+        # canonical result against the schema and renders it via output_spec.render.
+        self.output_spec = output_spec
 
 
 # ---------------------------------------------------------------------------
@@ -532,6 +539,7 @@ class ToolRegistry:
         max_result_size_chars: int | float | None = None,
         dynamic_schema_overrides: Callable = None,
         override: bool = False,
+        output_spec=None,
     ):
         """Register a tool.  Called at module-import time by each tool file.
 
@@ -591,6 +599,7 @@ class ToolRegistry:
                 emoji=emoji,
                 max_result_size_chars=max_result_size_chars,
                 dynamic_schema_overrides=dynamic_schema_overrides,
+                output_spec=output_spec,
             )
             # Availability is now derived per-tool (_toolset_has_exposable_tools),
             # so this map no longer gates a toolset. It is still consumed by
@@ -775,6 +784,25 @@ class ToolRegistry:
                 result = _run_async(entry.handler(args, **kwargs))
             else:
                 result = entry.handler(args, **kwargs)
+            # P4 harness alignment: if the tool declared an output_spec,
+            # validate the canonical result against the schema and render it
+            # via output_spec.render.  Tools without output_spec get the legacy
+            # pass-through normalization (string or multimodal envelope).
+            if entry.output_spec is not None:
+                # Multimodal envelope passthrough: never flatten a
+                # `_multimodal` dict through output_spec — the agent
+                # tool-message builder needs the structured envelope
+                # (`_is_multimodal_tool_result` in run_agent.py), and
+                # render would JSON-encode the image parts away.
+                if (
+                    isinstance(result, dict)
+                    and result.get("_multimodal") is True
+                    and isinstance(result.get("content"), list)
+                ):
+                    return result
+                from tools.output_schema import process_tool_output
+                processed = process_tool_output(result, args, entry.output_spec)
+                return processed.output_json
             return self._normalize_handler_result(name, result)
         except Exception as e:
             logger.exception("Tool %s dispatch error: %s", name, e)

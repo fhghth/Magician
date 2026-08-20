@@ -18,6 +18,7 @@ accessed via ``get_active_adapter()``.
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -415,6 +416,7 @@ async def send_dm(
 # ---------------------------------------------------------------------------
 
 from tools.registry import registry, tool_result  # noqa: E402
+from tools.output_schema import ToolOutputSpec  # noqa: E402
 
 
 def _check_yuanbao():
@@ -499,6 +501,54 @@ async def _handle_yb_send_sticker(args, **kw):
 
 _TOOLSET = "hermes-yuanbao"
 
+_YB_OUTPUT_SPEC = ToolOutputSpec(
+    # Permissive schema: results are action-dependent — group info
+    # (group_code/name/member_count), members ({members}), send_dm
+    # ({success, user_id, nickname, message_id, note}), sticker search
+    # ({results}), send_sticker ({success}); failures carry {error}.
+    schema={
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "error": {"type": ["string", "null"]},
+            "group_code": {"type": ["string", "null"]},
+            "group_name": {"type": ["string", "null"]},
+            "member_count": {"type": ["integer", "null"]},
+            "members": {"type": "array"},
+            "results": {"type": "array"},
+            "user_id": {"type": ["string", "null"]},
+            "nickname": {"type": ["string", "null"]},
+            "message_id": {"type": ["string", "null"]},
+            "note": {"type": ["string", "null"]},
+            "message": {"type": ["string", "null"]},
+        },
+    },
+    render=lambda value, args: json.dumps({
+        **value,
+        "_rendered": (
+            f"Yuanbao {'error' if value.get('error') else 'ok'}: "
+            + (
+                f"{value.get('error')}"
+                if value.get("error") else
+                (
+                    f"{value.get('group_name', '?')} "
+                    f"({value.get('member_count', 0)} members)"
+                    if "member_count" in value else
+                    (
+                        f"{len(value.get('members', []))} members"
+                        if "members" in value else
+                        (
+                            f"{len(value.get('results', []))} sticker candidates"
+                            if "results" in value else
+                            value.get("note") or value.get("message") or "done"
+                        )
+                    )
+                )
+            )
+        ),
+    }, ensure_ascii=False),
+)
+
 registry.register(
     name="yb_query_group_info",
     toolset=_TOOLSET,
@@ -523,6 +573,7 @@ registry.register(
     check_fn=_check_yuanbao,
     is_async=True,
     emoji="👥",
+    output_spec=_YB_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -575,6 +626,7 @@ registry.register(
     check_fn=_check_yuanbao,
     is_async=True,
     emoji="📋",
+    output_spec=_YB_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -648,6 +700,7 @@ registry.register(
     check_fn=_check_yuanbao,
     is_async=True,
     emoji="✉️",
+    output_spec=_YB_OUTPUT_SPEC,
 )
 
 
@@ -685,6 +738,7 @@ registry.register(
     check_fn=_check_yuanbao,
     is_async=True,
     emoji="🔍",
+    output_spec=_YB_OUTPUT_SPEC,
 )
 
 
@@ -734,4 +788,5 @@ registry.register(
     check_fn=_check_yuanbao,
     is_async=True,
     emoji="🎨",
+    output_spec=_YB_OUTPUT_SPEC,
 )

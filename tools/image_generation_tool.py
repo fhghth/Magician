@@ -1152,6 +1152,7 @@ if __name__ == "__main__":
 # Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 IMAGE_GENERATE_SCHEMA = {
     "name": "image_generate",
@@ -1665,4 +1666,37 @@ registry.register(
     is_async=False,   # sync fal_client API to avoid "Event loop is closed" in gateway
     emoji="🎨",
     dynamic_schema_overrides=_build_dynamic_image_schema,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: image_generate returns provider dict or error.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "image": {"type": ["string", "null"]},
+                "images": {"type": "array", "items": {"type": "string"}},
+                "error": {"type": ["string", "null"]},
+                "error_type": {"type": "string"},
+                "model": {"type": "string"},
+                "provider": {"type": "string"},
+                "prompt": {"type": "string"},
+                "aspect_ratio": {"type": "string"},
+                "seed": {"type": ["integer", "null"]},
+                "width": {"type": "integer"},
+                "height": {"type": "integer"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Image generated: {value.get('image', '')}"
+                + (f" (model={value.get('model', '')})" if value.get("model") else "")
+                + (f" (seed={value.get('seed', '')})" if value.get("seed") is not None else "")
+                + (f" ({value.get('width', '')}x{value.get('height', '')})" if value.get("width") and value.get("height") else "")
+            ) if value.get("success", True) and (value.get("image") or value.get("images")) else
+            (f"Image generation failed: {value.get('error', 'unknown error')}"
+             + (f" [{value.get('error_type', '')}]" if value.get("error_type") else ""))
+            if value.get("error") else
+            "Image generation completed"
+        }, ensure_ascii=False),
+    ),
 )

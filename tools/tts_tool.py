@@ -3906,6 +3906,7 @@ if __name__ == "__main__":
 # Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 TTS_SCHEMA = {
     "name": "text_to_speech",
@@ -3961,4 +3962,31 @@ registry.register(
         provider=args.get("provider")),
     check_fn=check_tts_requirements,
     emoji="🔊",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: tts has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "file_path": {"type": "string"},
+                "media_tag": {"type": "string"},
+                "provider": {"type": "string"},
+                "voice_compatible": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "file_size": {"type": "integer"},
+                "duration_seconds": {"type": "number"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"TTS generated: {value.get('file_path', '?')} "
+                f"(provider={value.get('provider', '?')}, "
+                f"voice={'yes' if value.get('voice_compatible') else 'no'})"
+                + (f" [size: {value.get('file_size', '?')} bytes]" if value.get("file_size") else "")
+                + (f" [duration: {value.get('duration_seconds', '?')}s]" if value.get("duration_seconds") else "")
+            ) if value.get("success", True) and value.get("file_path") else
+            (f"TTS failed: {value.get('error', 'unknown error')}" if value.get("error") else "TTS failed")
+        }, ensure_ascii=False),
+    ),
 )

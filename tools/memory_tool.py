@@ -1219,6 +1219,7 @@ MEMORY_SCHEMA = {
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="memory",
@@ -1233,6 +1234,48 @@ registry.register(
         store=kw.get("store")),
     check_fn=check_memory_requirements,
     emoji="🧠",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: memory has success, error, staged, and
+        # missing-old-text return shapes.  We validate common fields and
+        # allow extra properties.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "message": {"type": ["string", "null"]},
+                # Staged write shape
+                "staged": {"type": "boolean"},
+                "pending_id": {"type": ["string", "integer", "null"]},
+                # Missing old_text shape
+                "current_entries": {"type": "array", "items": {"type": "string"}},
+                "usage": {"type": "string"},
+                # Success shape (add/replace/remove)
+                "entries": {"type": "array", "items": {"type": "string"}},
+                "char_count": {"type": "integer"},
+                "char_limit": {"type": "integer"},
+                "action": {"type": "string"},
+                "target": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                # Staged shape
+                f"Memory write staged: pending_id={value.get('pending_id', '?')}, "
+                f"{value.get('message', '')}"
+                if value.get("staged") else
+                # Error shape
+                (f"Memory error: {value.get('error', 'unknown')}"
+                 + (f" (usage: {value.get('usage', '')})" if value.get("usage") else ""))
+                if not value.get("success", True) else
+                # Success shape
+                f"Memory {args.get('action', '?')} on {args.get('target', 'memory')}: success"
+                + (f", {len(value.get('entries', []))} entries" if value.get("entries") is not None else "")
+                + (f", {value.get('char_count', '?')}/{value.get('char_limit', '?')} chars" if value.get("char_count") is not None else "")
+            )
+        }, ensure_ascii=False),
+    ),
 )
 
 

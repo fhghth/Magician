@@ -346,6 +346,19 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
             only_skill_names=getattr(agent, "_preset_skill_allow", None),
             deny_skill_names=tuple(getattr(agent, "_preset_skill_deny", ()) or ()),
         )
+        # P1 harness alignment: when skill_view is available, the full
+        # available-skills index is published as a user message (see
+        # agent.skill_catalog.maybe_inject_catalog) so the system prompt
+        # stays byte-stable.  Replace the full index here with a minimal
+        # pointer — the model already has the catalog in conversation history
+        # on the first turn and on every turn after a digest change.
+        if skills_prompt and "skill_view" in (agent.valid_tool_names or set()):
+            skills_prompt = (
+                "Available skills are listed at the start of this conversation "
+                "(and refreshed when the skill set changes). Use the skill_view "
+                "tool to load a skill's full instructions; use skills_list to see "
+                "the current catalog."
+            )
     else:
         skills_prompt = ""
 
@@ -579,6 +592,41 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # rest of the volatile tail.
     if _preset_persona and not _preset_persona.get("complete"):
         volatile_parts.append(str(_preset_persona["text"]).strip())
+
+    # ── P5 harness alignment: merge registered system-prompt sections ──
+    # The SystemPromptRegistry (agent/system_prompt_registry.py) lets plugins
+    # and features contribute ordered sections without hardcoding into this
+    # file.  Registered sections are appended to the stable tier (they are
+    # expected to be conversation-stable; turn-varying content should use the
+    # user-message injection path instead).  The registry is opt-in: if no
+    # sections are registered, this is a no-op and the prompt is byte-identical
+    # to before.
+    #
+    # Built-in sections are registered once per agent (cached on
+    # ``_system_prompt_sections_registered``).  This mirrors the inline
+    # construction above into the registry so that plugins can override or
+    # extend individual sections by name.  The inline construction remains the
+    # source of truth; the registry is a secondary surface for extension.
+    try:
+        from agent.system_prompt_registry import (
+            SystemPromptRegistry, AssembleContext, render_prompt,
+        )
+        from agent.system_prompt_sections import register_builtin_sections
+
+        # One-time registration per agent instance.
+        if not getattr(agent, "_system_prompt_sections_registered", False):
+            scope = getattr(agent, "session_id", None) or None
+            register_builtin_sections(agent, scope=scope)
+            agent._system_prompt_sections_registered = True
+
+        registry = SystemPromptRegistry.get_instance()
+        scope = getattr(agent, "session_id", None) or None
+        reg_assembly = registry.assemble(AssembleContext(scope=scope))
+        reg_text = render_prompt(reg_assembly)
+        if reg_text:
+            stable_parts.append(reg_text)
+    except Exception as exc:
+        logger.debug("system prompt registry merge failed: %s", exc)
 
     return {
         "stable":   "\n\n".join(p.strip() for p in stable_parts   if p and p.strip()),

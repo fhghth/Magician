@@ -10,6 +10,7 @@ import logging
 import threading
 
 from tools.registry import registry, tool_error, tool_result
+from tools.output_schema import ToolOutputSpec
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +383,39 @@ def _handle_add_comment(args: dict, **kwargs) -> str:
 # Registration
 # ---------------------------------------------------------------------------
 
+_FEISHU_DRIVE_OUTPUT_SPEC = ToolOutputSpec(
+    # Permissive schema: list results return the lark API data dict
+    # (items/code/msg), mutations return {success, data}.
+    schema={
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "error": {"type": ["string", "null"]},
+            "code": {"type": ["integer", "null"]},
+            "msg": {"type": ["string", "null"]},
+            "data": {"type": ["object", "null"]},
+            "items": {"type": "array"},
+        },
+    },
+    render=lambda value, args: json.dumps({
+        **value,
+        "_rendered": (
+            f"Feishu {'error' if value.get('error') else 'ok'}: "
+            + (
+                f"{value.get('error')}"
+                if value.get("error") else
+                (
+                    f"{len(value.get('items', []))} items"
+                    if "items" in value else
+                    f"{len(value.get('data', {}).get('items', []))} items"
+                    if isinstance(value.get("data"), dict) else
+                    "done"
+                )
+            )
+        ),
+    }, ensure_ascii=False),
+)
+
 registry.register(
     name="feishu_drive_list_comments",
     toolset="feishu_drive",
@@ -392,6 +426,7 @@ registry.register(
     is_async=False,
     description="List document comments",
     emoji="\U0001f4ac",
+    output_spec=_FEISHU_DRIVE_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -404,6 +439,7 @@ registry.register(
     is_async=False,
     description="List comment replies",
     emoji="\U0001f4ac",
+    output_spec=_FEISHU_DRIVE_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -416,6 +452,7 @@ registry.register(
     is_async=False,
     description="Reply to a document comment",
     emoji="\u2709\ufe0f",
+    output_spec=_FEISHU_DRIVE_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -428,4 +465,5 @@ registry.register(
     is_async=False,
     description="Add a whole-document comment",
     emoji="\u2709\ufe0f",
+    output_spec=_FEISHU_DRIVE_OUTPUT_SPEC,
 )

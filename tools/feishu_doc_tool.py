@@ -9,6 +9,7 @@ import logging
 import threading
 
 from tools.registry import registry, tool_error, tool_result
+from tools.output_schema import ToolOutputSpec
 
 logger = logging.getLogger(__name__)
 
@@ -135,4 +136,22 @@ registry.register(
     is_async=False,
     description="Read Feishu document content",
     emoji="\U0001f4c4",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "content": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Feishu doc ({len(value.get('content') or '')} chars)"
+                + (f": {value.get('content', '')[:300]}" if value.get("content") else "")
+                + (f" — {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

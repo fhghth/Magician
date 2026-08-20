@@ -79,6 +79,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Dict, Any, List, Optional, Set, Tuple
 
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from hermes_cli.config import cfg_get
 from utils import env_var_enabled
 from agent.skill_utils import (
@@ -1290,6 +1291,25 @@ def skill_view(
                 ensure_ascii=False,
             )
 
+        # P2 harness alignment: model-invocation gating.
+        # ``disable-model-invocation: true`` hides the skill from the model
+        # (not in catalog, skill_view refuses when called by the model).
+        # Internal/slash-command callers pass preprocess=False and bypass
+        # this gate — those are user-initiated invocations (harness
+        # ``userInvocable`` is a separate check on the slash path).
+        if preprocess and parsed_frontmatter.get("disable-model-invocation") is True:
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": (
+                        f"Skill '{resolved_name}' is not model-invocable. "
+                        "It can only be invoked by the user via a slash command."
+                    ),
+                    "readiness_status": "not_model_invocable",
+                },
+                ensure_ascii=False,
+            )
+
         # If a specific file path is requested, read that instead
         if file_path and skill_dir:
             from tools.path_security import validate_within_dir, has_traversal_component
@@ -1799,6 +1819,40 @@ registry.register(
     ),
     check_fn=check_skills_requirements,
     emoji="📚",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "required": ["success", "skills", "categories"],
+            "properties": {
+                "success": {"type": "boolean"},
+                "skills": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "description": {"type": "string"},
+                            "category": {"type": ["string", "null"]},
+                        },
+                    },
+                },
+                "categories": {"type": "array", "items": {"type": "string"}},
+                "count": {"type": "integer"},
+                "message": {"type": "string"},
+                "hint": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            "success": value.get("success", True),
+            "skills": value.get("skills", []),
+            "categories": value.get("categories", []),
+            "count": value.get("count", len(value.get("skills", []))),
+            "_rendered": "\n".join(
+                f"- [{s.get('category', '?')}] {s.get('name', '?')}: {s.get('description', '')}"
+                for s in value.get("skills", [])
+            ),
+        }, ensure_ascii=False),
+    ),
 )
 # ── skill_view repeat-view dedup ────────────────────────────────────────
 # Per-task cache of (skill name, file_path) -> (skill file mtime+size).
@@ -1956,4 +2010,38 @@ registry.register(
     handler=_skill_view_with_bump,
     check_fn=check_skills_requirements,
     emoji="📚",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: skill_view has many shapes — main SKILL.md
+        # content, linked-file view, binary-file info, dedup stub, plugin
+        # skills, and assorted validation/security errors.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "status": {"type": "string"},
+                "name": {"type": "string"},
+                "description": {"type": ["string", "null"]},
+                "content": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "hint": {"type": ["string", "null"]},
+                "file": {"type": ["string", "null"]},
+                "file_type": {"type": ["string", "null"]},
+                "is_binary": {"type": "boolean"},
+                "readiness_status": {"type": ["string", "null"]},
+                "setup_needed": {"type": "boolean"},
+                "linked_files": {"type": ["object", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                "Skill content unchanged since first load this session (deduped)."
+                if value.get("status") == "unchanged" else
+                f"Skill '{value.get('name', '?')}' "
+                f"({'error' if not value.get('success', True) else 'loaded'}): "
+                f"{len(value.get('content') or '')} chars"
+                + (f" — {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

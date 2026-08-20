@@ -2149,6 +2149,7 @@ def search_tool(pattern: str, target: str = "content", path: str = ".",
 # Schemas + Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 
 def _check_file_reqs():
@@ -2313,7 +2314,173 @@ def _handle_search_files(args, **kw):
         output_mode=args.get("output_mode", "content"), context=args.get("context", 0), task_id=tid)
 
 
-registry.register(name="read_file", toolset="file", schema=READ_FILE_SCHEMA, handler=_handle_read_file, check_fn=_check_file_reqs, emoji="📖", max_result_size_chars=100_000)
-registry.register(name="write_file", toolset="file", schema=WRITE_FILE_SCHEMA, handler=_handle_write_file, check_fn=_check_file_reqs, emoji="✍️", max_result_size_chars=100_000)
-registry.register(name="patch", toolset="file", schema=PATCH_SCHEMA, handler=_handle_patch, check_fn=_check_file_reqs, emoji="🔧", max_result_size_chars=100_000)
-registry.register(name="search_files", toolset="file", schema=SEARCH_FILES_SCHEMA, handler=_handle_search_files, check_fn=_check_file_reqs, emoji="🔎", max_result_size_chars=100_000)
+registry.register(
+    name="read_file",
+    toolset="file",
+    schema=READ_FILE_SCHEMA,
+    handler=_handle_read_file,
+    check_fn=_check_file_reqs,
+    emoji="📖",
+    max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: read_file has multiple return shapes (success,
+        # dedup stub, error, document-extraction).  We validate the common
+        # fields and allow extra properties so all shapes pass through.
+        schema={
+            "type": "object",
+            "properties": {
+                "content": {"type": "string"},
+                "total_lines": {"type": "integer"},
+                "file_size": {"type": "integer"},
+                "truncated": {"type": "boolean"},
+                "hint": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "status": {"type": "string"},
+                "path": {"type": "string"},
+                "dedup": {"type": "boolean"},
+                "extracted_document": {"type": "boolean"},
+                "_warning": {"type": "string"},
+                "next_offset": {"type": "integer"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            # Preserve all original fields for downstream parsers.
+            **value,
+            # Add a concise rendered summary for the model.
+            "_rendered": (
+                f"Read: {value.get('path', args.get('path', '?'))} "
+                f"({value.get('total_lines', '?')} lines, "
+                f"{value.get('file_size', '?')} bytes)"
+                + (" [truncated]" if value.get("truncated") else "")
+                + (f" [next_offset={value['next_offset']}]" if value.get("next_offset") else "")
+            ) if "content" in value or "total_lines" in value else
+            (value.get("message", value.get("error", "")) if value.get("status") or value.get("error") else "")
+        }, ensure_ascii=False),
+    ),
+)
+registry.register(
+    name="write_file",
+    toolset="file",
+    schema=WRITE_FILE_SCHEMA,
+    handler=_handle_write_file,
+    check_fn=_check_file_reqs,
+    emoji="✍️",
+    max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "bytes_written": {"type": "integer"},
+                "dirs_created": {"type": "boolean"},
+                "verified": {"type": ["boolean", "null"]},
+                "lint": {"type": ["object", "null"]},
+                "lsp_diagnostics": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "warning": {"type": ["string", "null"]},
+                "_warning": {"type": "string"},
+                "resolved_path": {"type": "string"},
+                "files_modified": {"type": "array", "items": {"type": "string"}},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Wrote: {value.get('resolved_path', args.get('path', '?'))} "
+                f"({value.get('bytes_written', '?')} bytes)"
+                + (" [verified]" if value.get("verified") else "")
+                + (f" [warning: {value.get('_warning', value.get('warning', ''))}]" if value.get("_warning") or value.get("warning") else "")
+                + (f" [error: {value.get('error', '')}]" if value.get("error") else "")
+            )
+        }, ensure_ascii=False),
+    ),
+)
+registry.register(
+    name="patch",
+    toolset="file",
+    schema=PATCH_SCHEMA,
+    handler=_handle_patch,
+    check_fn=_check_file_reqs,
+    emoji="🔧",
+    max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "diff": {"type": "string"},
+                "files_modified": {"type": "array", "items": {"type": "string"}},
+                "files_created": {"type": "array", "items": {"type": "string"}},
+                "files_deleted": {"type": "array", "items": {"type": "string"}},
+                "lint": {"type": ["object", "null"]},
+                "lsp_diagnostics": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "no_change": {"type": "boolean"},
+                "note": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Patch: {'success' if value.get('success') else 'failed'} — "
+                f"{len(value.get('files_modified', []))} modified, "
+                f"{len(value.get('files_created', []))} created, "
+                f"{len(value.get('files_deleted', []))} deleted"
+                + (" [no change]" if value.get("no_change") else "")
+                + (f" [note: {value.get('note', '')}]" if value.get("note") else "")
+                + (f" [error: {value.get('error', '')}]" if value.get("error") else "")
+            )
+        }, ensure_ascii=False),
+    ),
+)
+registry.register(
+    name="search_files",
+    toolset="file",
+    schema=SEARCH_FILES_SCHEMA,
+    handler=_handle_search_files,
+    check_fn=_check_file_reqs,
+    emoji="🔎",
+    max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: search_files has two return shapes (matches array
+        # or dense matches_text), plus file-mode and error modes.
+        schema={
+            "type": "object",
+            "properties": {
+                "total_count": {"type": "integer"},
+                "matches": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "line": {"type": "integer"},
+                            "content": {"type": "string"},
+                        },
+                    },
+                },
+                "matches_text": {"type": "string"},
+                "matches_format": {"type": "string"},
+                "files": {"type": "array", "items": {"type": "string"}},
+                "counts": {"type": "object"},
+                "truncated": {"type": "boolean"},
+                "limit_reason": {"type": ["string", "null"]},
+                "warning": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "_omitted": {"type": "string"},
+                "_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Search: '{args.get('pattern', '')}' — "
+                f"{value.get('total_count', len(value.get('matches', value.get('files', []))))} matches"
+                + (" [truncated]" if value.get("truncated") else "")
+                + (f" [omitted: {value.get('_omitted', '')}]" if value.get("_omitted") else "")
+                + (f" [warning: {value.get('_warning', value.get('warning', ''))}]" if value.get("_warning") or value.get("warning") else "")
+                + (f" [error: {value.get('error', '')}]" if value.get("error") else "")
+            )
+        }, ensure_ascii=False),
+    ),
+)

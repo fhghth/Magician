@@ -413,6 +413,13 @@ def scan_skill_commands() -> Dict[str, Dict[str, Any]]:
                     # Respect user's disabled skills config
                     if name in disabled:
                         continue
+                    # P2 harness alignment: ``user-invocable: false`` skills
+                    # are model-only (or internal) and must NOT be registered
+                    # as user-facing slash commands.  They remain loadable via
+                    # skill_view when the model invokes them (subject to
+                    # disable-model-invocation, which is the orthogonal gate).
+                    if frontmatter.get('user-invocable') is False:
+                        continue
                     description = frontmatter.get('description', '')
                     if not description:
                         for line in body.strip().split('\n'):

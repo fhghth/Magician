@@ -2085,6 +2085,15 @@ def run_conversation(
                 conversation_history = conversation_history_after_compression(
                     agent, messages, conversation_history
                 )
+                # Context compression rewrites the message history — the
+                # original skills-catalog user message may be gone. Flag the
+                # catalog for republish on the next turn so the model sees the
+                # available-skills index again (P1 harness alignment).
+                try:
+                    from agent.skill_catalog import request_republish
+                    request_republish(agent)
+                except Exception:
+                    pass
                 api_call_count -= 1
                 agent._api_call_count = api_call_count
                 agent.iteration_budget.refund()

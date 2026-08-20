@@ -1139,6 +1139,7 @@ SESSION_SEARCH_SCHEMA = {
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="session_search",
@@ -1158,4 +1159,55 @@ registry.register(
     ),
     check_fn=check_session_search_requirements,
     emoji="🔍",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: session_search has search, browse, scroll, and
+        # error return shapes.  We validate common fields and allow extra
+        # properties.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "mode": {"type": "string"},
+                "query": {"type": "string"},
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                            "title": {"type": ["string", "null"]},
+                            "source": {"type": "string"},
+                            "started_at": {"type": "string"},
+                            "last_active": {"type": "string"},
+                            "message_count": {"type": "integer"},
+                            "preview": {"type": "string"},
+                            "link": {"type": "string"},
+                            "role": {"type": "string"},
+                            "content": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                    },
+                },
+                "count": {"type": "integer"},
+                "message": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "messages": {"type": "array"},
+                "total": {"type": "integer"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Session search ({value.get('mode', 'search')}): "
+                f"{value.get('count', len(value.get('results', [])))} result(s)"
+                + (f" for '{args.get('query', '')}'" if args.get("query") else "")
+                + "\n" + "\n".join(
+                    f"  [{i+1}] {r.get('title', r.get('session_id', '?'))} "
+                    f"({r.get('message_count', '?')} msgs, {r.get('last_active', '')})"
+                    for i, r in enumerate(value.get("results", [])[:5])
+                )
+            ) if value.get("success", True) and not value.get("error") else
+            (f"Session search failed: {value.get('error', 'unknown error')}" if value.get("error") else "No results")
+        }, ensure_ascii=False),
+    ),
 )

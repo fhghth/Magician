@@ -12,6 +12,7 @@ import json
 from typing import Callable, Optional
 
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from utils import env_var_enabled
 
 
@@ -90,4 +91,26 @@ registry.register(
     ),
     check_fn=check_read_terminal_requirements,
     emoji="🖥️",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "total_lines": {"type": "integer"},
+                "start": {"type": ["integer", "null"]},
+                "end": {"type": ["integer", "null"]},
+                "viewport_rows": {"type": ["integer", "null"]},
+                "cursor_row": {"type": ["integer", "null"]},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Terminal ({value.get('total_lines', '?')} lines)"
+                + (f": {value.get('text', '')[:300]}" if value.get("text") else "")
+                + (f" — {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

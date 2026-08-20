@@ -5011,6 +5011,7 @@ if __name__ == "__main__":
 # Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 _BROWSER_SCHEMA_MAP = {s["name"]: s for s in BROWSER_TOOL_SCHEMAS}
 
@@ -5021,6 +5022,32 @@ registry.register(
     handler=lambda args, **kw: browser_navigate(url=args.get("url", ""), task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="🌐",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_navigate has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "url": {"type": "string"},
+                "title": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "bot_detection_warning": {"type": "string"},
+                "stealth_warning": {"type": "string"},
+                "stealth_features": {"type": "array", "items": {"type": "string"}},
+                "snapshot": {"type": "object"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser navigated to: {value.get('url', '?')}"
+                + (f" — {value.get('title', '')}" if value.get("title") else "")
+                + (f" [bot detection: {value.get('bot_detection_warning', '')}]" if value.get("bot_detection_warning") else "")
+                + (f" [stealth: {value.get('stealth_warning', '')}]" if value.get("stealth_warning") else "")
+            ) if value.get("success", True) else
+            (f"Browser navigation failed: {value.get('error', 'unknown error')}" if value.get("error") else "Navigation failed")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_snapshot",
@@ -5030,6 +5057,33 @@ registry.register(
         full=args.get("full", False), task_id=kw.get("task_id"), user_task=kw.get("user_task")),
     check_fn=check_browser_requirements,
     emoji="📸",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_snapshot has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "snapshot": {"type": "string"},
+                "element_count": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+                "pending_dialogs": {"type": "array"},
+                "frame_tree": {"type": "object"},
+                "url": {"type": "string"},
+                "title": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser snapshot: {value.get('element_count', '?')} elements"
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+                + (f" [pending dialogs: {len(value.get('pending_dialogs', []))}]" if value.get("pending_dialogs") else "")
+                + "\n" + value.get("snapshot", "")[:500]
+            ) if value.get("success", True) and value.get("snapshot") else
+            (f"Browser snapshot failed: {value.get('error', 'unknown error')}" if value.get("error") else "No snapshot")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_click",
@@ -5038,6 +5092,26 @@ registry.register(
     handler=lambda args, **kw: browser_click(ref=args.get("ref", ""), task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="👆",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_click has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "clicked": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser clicked: {value.get('clicked', '?')}"
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+            ) if value.get("success", True) else
+            (f"Browser click failed: {value.get('error', 'unknown error')}" if value.get("error") else "Click failed")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_type",
@@ -5046,6 +5120,28 @@ registry.register(
     handler=lambda args, **kw: browser_type(ref=args.get("ref", ""), text=args.get("text", ""), task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="⌨️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_type has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "typed": {"type": "string"},
+                "element": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser typed into {value.get('element', '?')}: "
+                f"{value.get('typed', '')[:100]}"
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+            ) if value.get("success", True) else
+            (f"Browser type failed: {value.get('error', 'unknown error')}" if value.get("error") else "Type failed")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_scroll",
@@ -5054,6 +5150,26 @@ registry.register(
     handler=lambda args, **kw: browser_scroll(direction=args.get("direction", "down"), task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="📜",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_scroll has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "scrolled": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser scrolled: {value.get('scrolled', '?')}"
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+            ) if value.get("success", True) else
+            (f"Browser scroll failed: {value.get('error', 'unknown error')}" if value.get("error") else "Scroll failed")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_back",
@@ -5062,6 +5178,26 @@ registry.register(
     handler=lambda args, **kw: browser_back(task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="◀️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_back has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "url": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser back to: {value.get('url', '?')}"
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+            ) if value.get("success", True) else
+            (f"Browser back failed: {value.get('error', 'unknown error')}" if value.get("error") else "Back failed")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_press",
@@ -5070,6 +5206,26 @@ registry.register(
     handler=lambda args, **kw: browser_press(key=args.get("key", ""), task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="⌨️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_press has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "pressed": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser pressed: {value.get('pressed', '?')}"
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+            ) if value.get("success", True) else
+            (f"Browser press failed: {value.get('error', 'unknown error')}" if value.get("error") else "Press failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -5079,6 +5235,44 @@ registry.register(
     handler=lambda args, **kw: browser_get_images(task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="🖼️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_get_images has success and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "src": {"type": "string"},
+                            "alt": {"type": "string"},
+                            "width": {"type": "integer"},
+                            "height": {"type": "integer"},
+                        },
+                    },
+                },
+                "count": {"type": "integer"},
+                "warning": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Browser images: {value.get('count', len(value.get('images', [])))} found"
+                + (f" [warning: {value.get('warning', '')}]" if value.get("warning") else "")
+                + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+                + "\n" + "\n".join(
+                    f"  [{i+1}] {img.get('alt', '(no alt)')} — {img.get('src', '')[:80]}"
+                    for i, img in enumerate(value.get("images", [])[:5])
+                )
+            ) if value.get("success", True) and value.get("images") is not None else
+            (f"Browser get_images failed: {value.get('error', 'unknown error')}" if value.get("error") else "Get images failed")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_vision",
@@ -5087,6 +5281,42 @@ registry.register(
     handler=lambda args, **kw: browser_vision(question=args.get("question", ""), annotate=args.get("annotate", False), task_id=kw.get("task_id")),
     check_fn=check_browser_vision_requirements,
     emoji="👁️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_vision has analysis, native-vision, and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "analysis": {"type": "string"},
+                "screenshot_path": {"type": "string"},
+                "annotations": {"type": "array"},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+                # Native vision fast path envelope
+                "text_summary": {"type": "string"},
+                "meta": {"type": "object"},
+                "image_url": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                # Native vision fast path
+                f"Browser vision (native): screenshot attached"
+                + (f" — {value.get('text_summary', '')[:100]}" if value.get("text_summary") else "")
+                + (f" [path: {value.get('meta', {}).get('screenshot_path', '')}]" if value.get("meta", {}).get("screenshot_path") else "")
+                if value.get("image_url") or value.get("meta", {}).get("screenshot_path") else
+                # Auxiliary vision analysis
+                (f"Browser vision analysis: {value.get('analysis', '')[:200]}"
+                 + (f" [path: {value.get('screenshot_path', '')}]" if value.get("screenshot_path") else "")
+                 + (f" [annotations: {len(value.get('annotations', []))}]" if value.get("annotations") else "")
+                 + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else ""))
+                if value.get("success", True) and value.get("analysis") else
+                # Error
+                (f"Browser vision failed: {value.get('error', 'unknown error')}" if value.get("error") else "Vision failed")
+            )
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="browser_console",
@@ -5095,4 +5325,63 @@ registry.register(
     handler=lambda args, **kw: browser_console(clear=args.get("clear", False), expression=args.get("expression"), task_id=kw.get("task_id")),
     check_fn=check_browser_requirements,
     emoji="🖥️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_console has console-output, eval-result, and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "console_messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string"},
+                            "text": {"type": "string"},
+                            "source": {"type": "string"},
+                        },
+                    },
+                },
+                "js_errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "message": {"type": "string"},
+                            "source": {"type": "string"},
+                        },
+                    },
+                },
+                "total_messages": {"type": "integer"},
+                "total_errors": {"type": "integer"},
+                # Eval result shape
+                "result": {"type": ["string", "object", "array", "number", "boolean", "null"]},
+                "error": {"type": ["string", "null"]},
+                "fallback_warning": {"type": "string"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                # Eval result shape
+                f"Browser eval result: {str(value.get('result', ''))[:200]}"
+                if value.get("result") is not None else
+                # Console output shape
+                (f"Browser console: {value.get('total_messages', len(value.get('console_messages', [])))} messages, "
+                 f"{value.get('total_errors', len(value.get('js_errors', [])))} errors"
+                 + (f" [fallback: {value.get('fallback_warning', '')}]" if value.get("fallback_warning") else "")
+                 + "\n" + "\n".join(
+                    f"  [{m.get('type', '?')}] {m.get('text', '')[:100]}"
+                    for m in value.get("console_messages", [])[:3]
+                )
+                 + ("\n  [errors]\n" + "\n".join(
+                    f"  {e.get('message', '')[:100]}"
+                    for e in value.get("js_errors", [])[:3]
+                ) if value.get("js_errors") else ""))
+                if value.get("success", True) and (value.get("console_messages") is not None or value.get("js_errors") is not None) else
+                # Error
+                (f"Browser console failed: {value.get('error', 'unknown error')}" if value.get("error") else "Console failed")
+            )
+        }, ensure_ascii=False),
+    ),
 )

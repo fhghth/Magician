@@ -2406,6 +2406,7 @@ def format_process_notification(evt: dict) -> "str | None":
 # Registry -- the "process" tool schema + handler
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 PROCESS_SCHEMA = {
     "name": "process",
@@ -2526,4 +2527,39 @@ registry.register(
     schema=PROCESS_SCHEMA,
     handler=_handle_process,
     emoji="⚙️",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: `process` has action-dependent shapes —
+        # list returns {processes}, poll/log/wait/kill return status
+        # objects, write/submit/close return acknowledgement objects.
+        schema={
+            "type": "object",
+            "properties": {
+                "processes": {"type": "array"},
+                "status": {"type": ["string", "null"]},
+                "session_id": {"type": ["string", "null"]},
+                "command": {"type": ["string", "null"]},
+                "pid": {"type": ["integer", "null"]},
+                "exit_code": {"type": ["integer", "null"]},
+                "output": {"type": ["string", "null"]},
+                "output_preview": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "message": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"{len(value.get('processes', []))} background processes"
+                if "processes" in value and value.get("processes") is not None
+                else (
+                    f"Process {value.get('status', '?')} "
+                    f"(pid {value.get('pid')}, exit {value.get('exit_code')})"
+                    + (f": {value.get('output_preview', '')[:300]}" if value.get("output_preview") else "")
+                    + (f" — {value.get('error')}" if value.get("error") else "")
+                    + (f": {value.get('message')}" if value.get("message") else "")
+                )
+            ),
+        }, ensure_ascii=False),
+    ),
 )

@@ -476,6 +476,7 @@ HA_CALL_SERVICE_SCHEMA = {
 # ---------------------------------------------------------------------------
 
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="ha_list_entities",
@@ -484,6 +485,26 @@ registry.register(
     handler=_handle_list_entities,
     check_fn=_check_ha_available,
     emoji="🏠",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: ha_list_entities returns result or error.
+        schema={
+            "type": "object",
+            "properties": {
+                "result": {"type": ["array", "object", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Home Assistant entities: {len(value.get('result', []))} found"
+                if isinstance(value.get("result"), list) else
+                f"Home Assistant entities: {value.get('result', '?')}"
+            ) if "result" in value else
+            (f"HA list_entities failed: {value.get('error', 'unknown error')}" if value.get("error") else "List entities failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -493,6 +514,26 @@ registry.register(
     handler=_handle_get_state,
     check_fn=_check_ha_available,
     emoji="🏠",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: ha_get_state returns result or error.
+        schema={
+            "type": "object",
+            "properties": {
+                "result": {"type": ["object", "array", "string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"HA state: {json.dumps(value.get('result', {}), ensure_ascii=False)[:200]}"
+                if value.get("result") is not None else
+                "HA state: empty result"
+            ) if "result" in value else
+            (f"HA get_state failed: {value.get('error', 'unknown error')}" if value.get("error") else "Get state failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -502,6 +543,26 @@ registry.register(
     handler=_handle_list_services,
     check_fn=_check_ha_available,
     emoji="🏠",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: ha_list_services returns result or error.
+        schema={
+            "type": "object",
+            "properties": {
+                "result": {"type": ["object", "array", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"HA services: {value.get('result', {}).get('count', '?')} domains"
+                if isinstance(value.get("result"), dict) else
+                f"HA services: {value.get('result', '?')}"
+            ) if "result" in value else
+            (f"HA list_services failed: {value.get('error', 'unknown error')}" if value.get("error") else "List services failed")
+        }, ensure_ascii=False),
+    ),
 )
 
 registry.register(
@@ -511,4 +572,23 @@ registry.register(
     handler=_handle_call_service,
     check_fn=_check_ha_available,
     emoji="🏠",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: ha_call_service returns result or error.
+        schema={
+            "type": "object",
+            "properties": {
+                "result": {"type": ["object", "array", "string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "success": {"type": "boolean"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"HA service called: {args.get('domain', '?')}.{args.get('service', '?')}"
+                + (f" → {json.dumps(value.get('result', {}), ensure_ascii=False)[:100]}" if value.get("result") else "")
+            ) if "result" in value else
+            (f"HA call_service failed: {value.get('error', 'unknown error')}" if value.get("error") else "Call service failed")
+        }, ensure_ascii=False),
+    ),
 )

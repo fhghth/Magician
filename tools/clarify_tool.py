@@ -251,6 +251,7 @@ CLARIFY_SCHEMA = {
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="clarify",
@@ -263,4 +264,26 @@ registry.register(
         callback=kw.get("callback")),
     check_fn=check_clarify_requirements,
     emoji="❓",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "required": ["question", "user_response"],
+            "properties": {
+                "question": {"type": "string"},
+                "choices_offered": {
+                    "type": ["array", "null"],
+                    "items": {"type": "string"},
+                },
+                "user_response": {
+                    "type": ["string", "array"],
+                    "items": {"type": "string"},
+                },
+            },
+        },
+        render=lambda value, args: json.dumps({
+            "question": value.get("question", ""),
+            "user_response": value.get("user_response", ""),
+            "_rendered": f"Q: {value.get('question', '')}\nA: {value.get('user_response', '')}",
+        }, ensure_ascii=False),
+    ),
 )

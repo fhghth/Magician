@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 
 from tools.browser_supervisor import SUPERVISOR_REGISTRY
 from tools.registry import registry
+from tools.output_schema import ToolOutputSpec
 
 logger = logging.getLogger(__name__)
 
@@ -145,4 +146,23 @@ registry.register(
     ),
     check_fn=_browser_dialog_check,
     emoji="💬",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "action": {"type": ["string", "null"]},
+                "dialog": {"type": ["object", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Dialog {args.get('action', '?')} "
+                f"{'ok' if value.get('success') else 'failed'}"
+                + (f": {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

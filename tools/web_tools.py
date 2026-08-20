@@ -1165,6 +1165,7 @@ if __name__ == "__main__":
 # Registry
 # ---------------------------------------------------------------------------
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 WEB_SEARCH_SCHEMA = {
     "name": "web_search",
@@ -1219,6 +1220,59 @@ registry.register(
     requires_env=_web_requires_env(),
     emoji="🔍",
     max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: different providers may return slightly different
+        # shapes.  We validate the common fields and allow extra properties.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "web": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "url": {"type": "string"},
+                                    "description": {"type": "string"},
+                                    "position": {"type": "integer"},
+                                },
+                            },
+                        },
+                    },
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "url": {"type": "string"},
+                            "description": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Search: '{args.get('query', '')}' — "
+                f"{len(value.get('data', {}).get('web', value.get('results', [])))} results"
+                + "\n" + "\n".join(
+                    f"{i+1}. {r.get('title', '?')} — {r.get('url', '?')}"
+                    for i, r in enumerate(
+                        value.get('data', {}).get('web', value.get('results', []))[:5]
+                    )
+                )
+            ) if value.get("success", True) and not value.get("error") else
+            (f"Search failed: {value.get('error', 'unknown error')}" if value.get("error") else "")
+        }, ensure_ascii=False),
+    ),
 )
 registry.register(
     name="web_extract",
@@ -1234,4 +1288,40 @@ registry.register(
     is_async=True,
     emoji="📄",
     max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: web_extract has results and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "url": {"type": "string"},
+                            "title": {"type": "string"},
+                            "content": {"type": "string"},
+                            "error": {"type": ["string", "null"]},
+                            "blocked_by_policy": {"type": "boolean"},
+                        },
+                    },
+                },
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Extracted {len(value.get('results', []))} page(s)"
+                + "\n" + "\n".join(
+                    f"  [{i+1}] {r.get('title', r.get('url', '?'))} "
+                    f"({len(r.get('content', ''))} chars)"
+                    + (f" [error: {r.get('error', '')}]" if r.get("error") else "")
+                    for i, r in enumerate(value.get("results", [])[:5])
+                )
+            ) if value.get("results") else
+            (f"Extract failed: {value.get('error', 'unknown error')}" if value.get("error") else "No results")
+        }, ensure_ascii=False),
+    ),
 )

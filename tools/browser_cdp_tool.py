@@ -23,6 +23,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 logger = logging.getLogger(__name__)
 
@@ -681,4 +682,27 @@ registry.register(
     ),
     check_fn=_browser_cdp_check,
     emoji="🧪",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: browser_cdp returns {success, method,
+        # result, [target_id]} or a tool_error {error, method,
+        # [cdp_docs]}.  The CDP `result` payload is backend-defined.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "method": {"type": ["string", "null"]},
+                "target_id": {"type": ["string", "null"]},
+                "result": {"type": ["object", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"CDP {value.get('method', '?')} "
+                f"{'failed' if value.get('error') else 'ok'}"
+                + (f": {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

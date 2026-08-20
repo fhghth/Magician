@@ -18,6 +18,7 @@ from utils import env_var_enabled
 
 from tools.process_registry import process_registry
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 
 def close_terminal_tool(process_id: str) -> str:
@@ -67,4 +68,24 @@ registry.register(
     handler=lambda args, **kw: close_terminal_tool(process_id=args.get("process_id", "")),
     check_fn=check_close_terminal_requirements,
     emoji="🖥️",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "process_id": {"type": ["string", "null"]},
+                "status": {"type": ["string", "null"]},
+                "message": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Close terminal {'ok' if value.get('success', True) else 'failed'}"
+                + (f": {value.get('error')}" if value.get("error") else "")
+                + (f": {value.get('message')}" if value.get("message") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

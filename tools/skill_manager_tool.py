@@ -1748,6 +1748,7 @@ SKILL_MANAGE_SCHEMA = {
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="skill_manage",
@@ -1765,4 +1766,34 @@ registry.register(
         replace_all=args.get("replace_all", False),
         absorbed_into=args.get("absorbed_into")),
     emoji="📝",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: every skill_manage result is a
+        # {success: bool, ...} object — success payloads carry
+        # name/message/path, the write gate returns staged/needed,
+        # failures carry error.
+        schema={
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "message": {"type": ["string", "null"]},
+                "name": {"type": ["string", "null"]},
+                "path": {"type": ["string", "null"]},
+                "staged": {"type": "boolean"},
+                "needed": {"type": "boolean"},
+                "pending_id": {"type": ["string", "null"]},
+                "hint": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Skill {args.get('action', '?')} "
+                f"{'staged for approval' if value.get('staged') else ('succeeded' if value.get('success') else 'failed')}"
+                + (f": {value.get('error')}" if value.get("error") else "")
+                + (f": {value.get('message')}" if value.get("message") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

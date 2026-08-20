@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from agent.secret_scope import get_secret
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1097,6 +1098,48 @@ _STATIC_ADMIN_SCHEMA = _build_schema(
     list(_ADMIN_ACTIONS.keys()), caps={"detected": False}, tool_name="discord_admin",
 )
 
+_DISCORD_OUTPUT_SPEC = ToolOutputSpec(
+    # Permissive schema: action results vary widely — collection
+    # shapes {guilds, roles, members, messages, pinned_messages, ...}
+    # with a count, ack shapes {success, message}, and tool_error.
+    schema={
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "error": {"type": ["string", "null"]},
+            "count": {"type": "integer"},
+            "guilds": {"type": "array"},
+            "roles": {"type": "array"},
+            "members": {"type": "array"},
+            "messages": {"type": "array"},
+            "pinned_messages": {"type": "array"},
+            "channel_groups": {"type": "array"},
+            "message": {"type": ["string", "null"]},
+            "available_actions": {"type": "array"},
+        },
+    },
+    render=lambda value, args: json.dumps({
+        **value,
+        "_rendered": (
+            f"Discord {args.get('action', '?')}: "
+            + (
+                f"{value.get('count', 0)} items"
+                if "count" in value and value.get("count") is not None
+                else (
+                    f"ok — {value.get('message')}"
+                    if value.get("success") and value.get("message")
+                    else (
+                        f"error — {value.get('error')}"
+                        if value.get("error") else
+                        f"{len(value.get('messages', []))} messages" if "messages" in value
+                        else "done"
+                    )
+                )
+            )
+        ),
+    }, ensure_ascii=False),
+)
+
 registry.register(
     name="discord",
     toolset="discord",
@@ -1104,6 +1147,7 @@ registry.register(
     handler=_make_handler(discord_core),
     check_fn=check_discord_tool_requirements,
     requires_env=["DISCORD_BOT_TOKEN"],
+    output_spec=_DISCORD_OUTPUT_SPEC,
 )
 
 registry.register(
@@ -1113,4 +1157,5 @@ registry.register(
     handler=_make_handler(discord_admin_handler),
     check_fn=check_discord_tool_requirements,
     requires_env=["DISCORD_BOT_TOKEN"],
+    output_spec=_DISCORD_OUTPUT_SPEC,
 )

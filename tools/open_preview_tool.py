@@ -12,6 +12,7 @@ import re
 
 from tools import desktop_ui
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from utils import env_var_enabled
 
 
@@ -94,4 +95,23 @@ registry.register(
     handler=lambda args, **kw: open_preview_tool(url=args.get("url", ""), label=args.get("label", "")),
     check_fn=check_open_preview_requirements,
     emoji="🖼️",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "url": {"type": ["string", "null"]},
+                "label": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Preview {'ok' if value.get('success') else 'failed'}: "
+                f"{value.get('url', '')}"
+                + (f" — {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

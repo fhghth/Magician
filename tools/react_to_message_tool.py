@@ -18,6 +18,7 @@ import json
 from gateway.session_context import get_session_env
 from tools import desktop_ui
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from utils import env_var_enabled
 
 
@@ -164,4 +165,24 @@ registry.register(
     ),
     check_fn=check_react_requirements,
     emoji="💛",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "row_id": {"type": ["integer", "null"]},
+                "reactions": {"type": ["object", "null"]},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Reaction {'ok' if value.get('success') else 'failed'}"
+                + (f" ({len(value.get('reactions', []))} reactions on row {value.get('row_id')})"
+                   if value.get("success") else "")
+                + (f": {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

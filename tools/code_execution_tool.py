@@ -2072,6 +2072,7 @@ EXECUTE_CODE_SCHEMA = build_execute_code_schema()
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="execute_code",
@@ -2084,4 +2085,35 @@ registry.register(
     check_fn=check_sandbox_requirements,
     emoji="🐍",
     max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: execute_code has success/timeout/interrupted/error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "status": {"type": "string"},
+                "output": {"type": "string"},
+                "exit_code": {"type": "integer"},
+                "error": {"type": ["string", "null"]},
+                "hint": {"type": "string"},
+                "tool_calls_made": {"type": "integer"},
+                "duration_seconds": {"type": "number"},
+                "truncated": {"type": "boolean"},
+                "output_head": {"type": "string"},
+                "output_tail": {"type": "string"},
+                "total_output_bytes": {"type": "integer"},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Code execution: {value.get('status', '?')} "
+                f"(exit={value.get('exit_code', '?')}, "
+                f"{value.get('duration_seconds', '?')}s, "
+                f"{value.get('tool_calls_made', 0)} tool calls)"
+                + (f" [truncated]" if value.get("truncated") else "")
+                + (f" [hint: {value.get('hint', '')}]" if value.get("hint") else "")
+                + "\n" + value.get("output", "")[:500]
+            )
+        }, ensure_ascii=False),
+    ),
 )

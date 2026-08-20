@@ -1430,15 +1430,18 @@ def init_agent(
         agent._tool_snapshot_generation = 0
 
     # ── Agent preset resolution (aligned with deepseek-harness agent-presets) ──
-    # Priority: explicit parameter > session record > config default. The
-    # preset's tools rows + capabilities merge into the toolset lists before
-    # the tool snapshot is taken; the persona is stored on the agent and
-    # applied by agent.system_prompt.build_system_prompt_parts.
+    # Priority: explicit parameter > session record > config default.
+    # Standing mount: PresetMountManager caches the resolved composition by
+    # (preset_id, file_stamp) so all agents naming the same preset share the
+    # same parse.  The mount stores the preset's *own* ensure/exclude/allow/
+    # deny/persona; merging into the caller's toolset lists happens here so a
+    # preset change never mutates another agent's already-resolved lists.
     agent._agent_preset = None
     agent._preset_persona = None
     agent._agent_preset_id = None
     agent._preset_skill_allow = None
     agent._preset_skill_deny = ()
+    agent._preset_mount = None
     _preset_id = agent_preset
     try:
         if not _preset_id and session_db is not None and session_id:
@@ -1457,26 +1460,42 @@ def init_agent(
             _preset_id = ""
     if _preset_id:
         try:
-            from hermes_cli.agent_presets import apply_preset_skills, apply_preset_tools, load_preset
-            _preset = load_preset(_preset_id)
-            agent._agent_preset = _preset
+            from agent.preset_mount_manager import get_preset_mount_manager
+            from hermes_cli.agent_presets import find_preset
+            _mount_mgr = get_preset_mount_manager()
+            _mount = _mount_mgr.resolve(_preset_id)
+            if _mount is None:
+                raise ValueError(f"preset {_preset_id!r} not found or broken")
             agent._agent_preset_id = _preset_id
-            _preset_persona = _preset.persona
-            if _preset_persona and str(_preset_persona.get("text", "") or "").strip():
-                agent._preset_persona = _preset_persona
-            enabled_toolsets, disabled_toolsets = apply_preset_tools(
-                _preset, enabled_toolsets, disabled_toolsets
-            )
-            _skill_allow, _skill_deny = apply_preset_skills(_preset)
-            agent._preset_skill_allow = _skill_allow
-            agent._preset_skill_deny = tuple(_skill_deny)
+            agent._preset_mount = _mount
+            agent._preset_persona = _mount.persona
+            # Keep a reference to the AgentPreset for backward-compat
+            # introspection (CLI /preset show, tests).  find_preset is cheap
+            # — it re-scans roots but the manager already validated the file.
+            _preset = find_preset(_preset_id)
+            agent._agent_preset = _preset
+            # Merge preset ensure/exclude into the caller's toolset lists.
+            # "all"/"*" in enabled means every toolset is already on, so
+            # ensure additions are no-ops (mirrors apply_preset_tools).
+            _all_enabled = any(t in (enabled_toolsets or []) for t in ("all", "*"))
+            if not _all_enabled:
+                for _ts in _mount.ensure_toolsets:
+                    if _ts not in (enabled_toolsets or []):
+                        if enabled_toolsets is None:
+                            enabled_toolsets = []
+                        enabled_toolsets.append(_ts)
+            for _ts in _mount.exclude_toolsets:
+                if _ts not in (disabled_toolsets or []):
+                    if disabled_toolsets is None:
+                        disabled_toolsets = []
+                    disabled_toolsets.append(_ts)
+            agent._preset_skill_allow = _mount.skill_allow
+            agent._preset_skill_deny = tuple(_mount.skill_deny)
             if not quiet_mode:
-                _preset_label = (
-                    f" ({_preset.name})"
-                    if _preset.name and _preset.name != _preset.id
-                    else ""
-                )
-                print(f"🎭 Agent preset: {_preset.id}{_preset_label}")
+                _preset_label = ""
+                if _preset and _preset.name and _preset.name != _preset.id:
+                    _preset_label = f" ({_preset.name})"
+                print(f"🎭 Agent preset: {_preset_id}{_preset_label}")
         except Exception as _preset_exc:
             logger.warning("agent preset %r could not be applied: %s", _preset_id, _preset_exc)
             if not quiet_mode:

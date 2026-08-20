@@ -55,6 +55,7 @@ from agent.video_gen_provider import (
     error_response,
 )
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 logger = logging.getLogger(__name__)
 
@@ -572,4 +573,28 @@ registry.register(
     is_async=False,
     emoji="🎬",
     dynamic_schema_overrides=_build_dynamic_video_schema,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: success results are provider-defined dicts
+        # (e.g. {success, video_url, ...}); failures use the shared
+        # error_response shape {error, error_type, provider, model, prompt}.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "error": {"type": ["string", "null"]},
+                "error_type": {"type": ["string", "null"]},
+                "provider": {"type": ["string", "null"]},
+                "model": {"type": ["string", "null"]},
+                "prompt": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Video generation {'failed' if value.get('error') else 'requested'}: "
+                f"{value.get('error', '') or value.get('provider', '?') or 'ok'}"
+                + (f" ({value.get('error_type')})" if value.get("error_type") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

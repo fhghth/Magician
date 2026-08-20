@@ -11,6 +11,7 @@ import json
 
 from tools import desktop_ui
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from utils import env_var_enabled
 
 PANES = ("chat", "files", "terminal", "review", "sessions")
@@ -67,4 +68,22 @@ registry.register(
     handler=lambda args, **kw: focus_pane_tool(pane=args.get("pane", "")),
     check_fn=check_focus_pane_requirements,
     emoji="🪟",
+    output_spec=ToolOutputSpec(
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "pane": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"Focus pane '{value.get('pane')}' "
+                f"{'ok' if value.get('success') else 'failed'}"
+                + (f": {value.get('error')}" if value.get("error") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )

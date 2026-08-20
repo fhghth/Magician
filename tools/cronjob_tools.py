@@ -1157,6 +1157,7 @@ def check_cronjob_requirements() -> bool:
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 
 registry.register(
     name="cronjob",
@@ -1188,4 +1189,55 @@ registry.register(
     ),
     check_fn=check_cronjob_requirements,
     emoji="⏰",
+    output_spec=ToolOutputSpec(
+        # Permissive schema: cronjob has create, list, and error shapes.
+        schema={
+            "type": "object",
+            "properties": {
+                "success": {"type": "boolean"},
+                "message": {"type": "string"},
+                "error": {"type": ["string", "null"]},
+                # Create shape
+                "job_id": {"type": ["string", "integer", "null"]},
+                "name": {"type": ["string", "null"]},
+                "skill": {"type": ["string", "null"]},
+                "skills": {"type": "array", "items": {"type": "string"}},
+                "schedule": {"type": "string"},
+                "repeat": {"type": ["string", "integer", "null"]},
+                "deliver": {"type": "string"},
+                "next_run_at": {"type": ["string", "null"]},
+                "job": {"type": "object"},
+                # List shape
+                "count": {"type": "integer"},
+                "jobs": {"type": "array", "items": {"type": "object"}},
+                # Error shape
+                "matches": {"type": "array", "items": {"type": "object"}},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                # List shape
+                f"Cron jobs: {value.get('count', len(value.get('jobs', [])))} total"
+                + "\n" + "\n".join(
+                    f"  [{j.get('id', '?')}] {j.get('name', '?')} "
+                    f"({j.get('schedule_display', j.get('schedule', '?'))}, "
+                    f"{'enabled' if j.get('enabled', True) else 'disabled'})"
+                    for j in value.get("jobs", [])[:5]
+                )
+                if "jobs" in value else
+                # Create shape
+                (f"Cron job created: {value.get('name', '?')} "
+                 f"(id={value.get('job_id', '?')}, schedule={value.get('schedule', '?')}, "
+                 f"next_run={value.get('next_run_at', '?')})"
+                 + (f" — {value.get('message', '')}" if value.get("message") else ""))
+                if value.get("job_id") else
+                # Error shape
+                (f"Cron error: {value.get('error', 'unknown error')}"
+                 + (f" (matches: {len(value.get('matches', []))})" if value.get("matches") else ""))
+                if value.get("error") else
+                "Cron operation completed"
+            )
+        }, ensure_ascii=False),
+    ),
 )

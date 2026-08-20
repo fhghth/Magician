@@ -51,6 +51,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from tools.registry import registry, tool_error
+from tools.output_schema import ToolOutputSpec
 from tools.xai_http import hermes_xai_user_agent, resolve_xai_http_credentials
 
 logger = logging.getLogger(__name__)
@@ -549,4 +550,38 @@ registry.register(
     requires_env=["XAI_API_KEY"],
     emoji="🐦",
     max_result_size_chars=100_000,
+    output_spec=ToolOutputSpec(
+        # Permissive schema: success is {success, provider, tool, query,
+        # answer, citations, inline_citations, degraded, degraded_reason};
+        # failures are {success: False, provider, tool, error, error_type}.
+        schema={
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+                "success": {"type": "boolean"},
+                "provider": {"type": ["string", "null"]},
+                "tool": {"type": ["string", "null"]},
+                "query": {"type": ["string", "null"]},
+                "answer": {"type": ["string", "null"]},
+                "citations": {"type": "array"},
+                "inline_citations": {"type": "array"},
+                "degraded": {"type": "boolean"},
+                "degraded_reason": {"type": ["string", "null"]},
+                "error": {"type": ["string", "null"]},
+                "error_type": {"type": ["string", "null"]},
+            },
+        },
+        render=lambda value, args: json.dumps({
+            **value,
+            "_rendered": (
+                f"x_search {'failed' if not value.get('success', True) else 'ok'}: "
+                f"{len(value.get('answer', ''))} chars"
+                + (f" ({len(value.get('citations', []))} citations)"
+                   if value.get("citations") else "")
+                + (f" — {value.get('error')}" if value.get("error") else "")
+                + (f" — degraded: {value.get('degraded_reason')}"
+                   if value.get("degraded") and value.get("degraded_reason") else "")
+            ),
+        }, ensure_ascii=False),
+    ),
 )
