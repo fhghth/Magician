@@ -694,14 +694,18 @@ class CLICommandsMixin:
     def _handle_preset_command(self, cmd: str):
         """Handle /preset — list, switch, and copy agent presets.
 
-        /preset                  → list presets with the active one marked
-        /preset <id>             → switch this session to <id> (recompose now)
-        /preset copy <id> <new>  → copy a preset to ~/.hermes/.agent-presets/
-        /preset default <id>     → persist <id> as the global default ("" clears)
+        /preset                  — list presets with the active one marked
+        /preset <id>             — switch this session to <id> (recompose now)
+        /preset copy <id> <new>  — copy a preset to ~/.hermes/.agent-presets/
+        /preset default <id>     — persist <id> as the global default ("" clears)
 
         Switching recomposes the running agent on the next turn (harness
-        recompose semantics): the conversation history survives, the agent's
-        persona + tool profile change immediately.
+        recompose semantics): the persona + tool/skill profile change
+        immediately. The harness blank-session rule applies: the switch is
+        only allowed while this conversation is still blank — once it has any
+        message, the composition is fixed (swapping tools mid-conversation
+        would leave logged tool calls the new composition cannot make). Start
+        a new session (/new) to switch modes.
         """
         import shlex
 
@@ -765,6 +769,19 @@ class CLICommandsMixin:
             if preset.broken:
                 _cprint(f"{_RST}✗ Preset {target!r} is broken: {preset.broken_reason}")
                 return
+            # Harness blank-session rule (deepseek-harness agent-presets
+            # `recompose`): a preset may only be swapped while the session is
+            # still blank. Once this conversation has any message, the
+            # composition is fixed — swapping tools mid-conversation would
+            # leave logged tool calls the new composition cannot make.
+            _history_count = len(getattr(self, "conversation_history", None) or [])
+            if _history_count > 0:
+                _cprint(
+                    f"{_RST}✗ This conversation already has messages — the preset is "
+                    f"fixed once the conversation starts. Start a new session "
+                    f"(/new) to switch modes."
+                )
+                return
             self._agent_preset = target
             try:
                 if self._session_db is not None:
@@ -803,9 +820,11 @@ class CLICommandsMixin:
             name_part = f" — {preset.name}" if preset.name and preset.name != preset.id else ""
             desc_part = f": {preset.description}" if preset.description else ""
             tools_part = f" ({preset.toolset_summary()})"
+            skills_part = f" skills: {preset.skills_summary()}"
             _cprint(
                 f"{active}[{trust}] {preset.id}{name_part}{_DIM}{desc_part}{_RST}"
                 f"{_DIM}{tools_part}{_RST}"
+                f"{_DIM}{skills_part}{_RST}"
             )
         _cprint(f"{_DIM}Switch with /preset <id>; copy with /preset copy <src> <new>.{_RST}")
 

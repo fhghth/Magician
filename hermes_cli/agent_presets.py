@@ -23,8 +23,12 @@ Line kinds:
   ``include_runtime_context: true`` appends environment hints after the text.
 * ``tools``        — list of ``{toolset: <name>, disabled: true|false}`` rows.
   Rows without ``disabled`` enable the toolset; ``disabled: true`` excludes it.
-* ``capabilities`` — map of capability key → bool. ``false`` excludes the
+* ``capabilities`` — map of capability key — bool. ``false`` excludes the
   mapped toolset, ``true`` ensures it is enabled.
+* ``skills``       — list of skill names. A bare name is an allow-list entry
+  (only those skills appear in the system-prompt index); a ``~name`` entry
+  denies that skill (everything else stays). ``[]`` turns skills off entirely.
+  Absent line = leave the default (all skills).
 """
 
 from __future__ import annotations
@@ -58,7 +62,8 @@ BUNDLED_PRESET_DIR = Path(__file__).resolve().parent / "agent_presets"
 PERSONA_KIND = "persona"
 TOOLS_KIND = "tools"
 CAPABILITIES_KIND = "capabilities"
-KNOWN_KINDS = frozenset({PERSONA_KIND, TOOLS_KIND, CAPABILITIES_KIND})
+SKILLS_KIND = "skills"
+KNOWN_KINDS = frozenset({PERSONA_KIND, TOOLS_KIND, CAPABILITIES_KIND, SKILLS_KIND})
 
 # Capability key → Hermes toolset name.
 _CAPABILITY_TOOLSETS = {
@@ -130,9 +135,19 @@ class AgentPreset:
         return None
 
     @property
+    def skills(self) -> Optional[list]:
+        """Raw skills line: list of names; ``~name`` entries deny."""
+        for line in self.composition or []:
+            if line.get("kind") == SKILLS_KIND:
+                cfg = line.get("config")
+                if isinstance(cfg, list):
+                    return cfg
+        return None
+
+    @property
     def is_empty(self) -> bool:
         """True when the preset changes nothing (e.g. ``standard``)."""
-        return not (self.persona or self.tools or self.capabilities)
+        return not (self.persona or self.tools or self.capabilities or self.skills)
 
     def toolset_summary(self) -> str:
         """Compact human-readable tool/capability summary for listing."""
@@ -147,6 +162,24 @@ class AgentPreset:
             if ts and not value and ts not in parts:
                 parts.append(f"~{ts}")
         return ", ".join(parts) if parts else "(default tools)"
+
+    def skills_summary(self) -> str:
+        """Compact human-readable skills line for listing.
+
+        ``"(default skills)"`` — no skills line: the default set stays.
+        ``"(no skills)"`` — empty allow-list: skills are off.
+        Otherwise the allow list with ``~name`` for denied entries.
+        """
+        skills = self.skills
+        if skills is None:
+            return "(default skills)"
+        parts = []
+        for name in skills:
+            if not isinstance(name, str) or not name.strip():
+                continue
+            entry = name.strip()
+            parts.append(entry if not entry.startswith("~") else f"~{entry[1:]}")
+        return ", ".join(parts) if parts else "(no skills)"
 
 
 def user_presets_root() -> Path:
@@ -231,6 +264,13 @@ def _parse_composition(path: Path) -> Tuple[Optional[list], List[str]]:
                             f"capability {key!r} unknown "
                             f"(known: {', '.join(sorted(_CAPABILITY_TOOLSETS))})"
                         )
+        elif kind == SKILLS_KIND:
+            if not isinstance(cfg, list):
+                problems.append("skills line needs config as a list of skill names")
+            else:
+                for skill_row in cfg:
+                    if not isinstance(skill_row, str) or not skill_row.strip():
+                        problems.append(f"skills entry {skill_row!r} must be a non-empty name")
         lines.append({"id": entry.get("id") or kind, "kind": kind, "config": cfg})
     return lines, problems
 
@@ -411,3 +451,29 @@ def apply_preset_tools(
         else:
             _ensure(toolset)
     return enabled, disabled
+
+
+def apply_preset_skills(
+    preset: AgentPreset,
+) -> Tuple[Optional[List[str]], List[str]]:
+    """Resolve a preset's skills line into (allow, deny) skill-name lists.
+
+    ``allow`` is ``None`` when the preset leaves the default set untouched,
+    an empty list when skills are turned off (``[]``), or the allow-list of
+    names the system-prompt index is restricted to. ``deny`` holds ``~name``
+    exclusions. A preset with no skills line returns ``(None, [])``.
+    """
+    skills = preset.skills if preset is not None and not preset.broken else None
+    if skills is None:
+        return None, []
+    allow: List[str] = []
+    deny: List[str] = []
+    for name in skills:
+        if not isinstance(name, str) or not name.strip():
+            continue
+        entry = name.strip()
+        if entry.startswith("~"):
+            deny.append(entry[1:])
+        else:
+            allow.append(entry)
+    return allow, deny

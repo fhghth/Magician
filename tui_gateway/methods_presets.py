@@ -13,6 +13,12 @@ Mirrors the classic CLI's `/preset` semantics (see
   kept in line with the deepseek-harness mount/recompose semantics the CLI
   side already follows.
 
+  The harness blank-session rule applies: a preset may only be swapped while
+  the session is still blank (no messages yet). Once the conversation has
+  content, the composition is fixed — swapping tools mid-conversation would
+  leave logged tool calls the new composition cannot make. Busy sessions and
+  sessions with history are rejected (4009 / 4010).
+
 Handler bodies are rebound onto server.py's globals at install time — see
 method_ctx.py.
 """
@@ -31,6 +37,7 @@ def _preset_to_dict(preset) -> dict:
         "trust": str(getattr(preset, "trust", "") or ""),
         "broken": bool(getattr(preset, "broken", False)),
         "toolset_summary": str(getattr(preset, "toolset_summary", lambda: "")()),
+        "skills_summary": str(getattr(preset, "skills_summary", lambda: "")()),
     }
 
 
@@ -72,6 +79,22 @@ def _(rid, params: dict) -> dict:
     db = _get_db()
     if db is not None:
         try:
+            # Harness blank-session rule (deepseek-harness agent-presets
+            # `recompose`): a preset may only be swapped while the session is
+            # still blank. Once the conversation has any message, the
+            # composition is fixed — swapping tools mid-conversation would
+            # leave logged tool calls (and prompt sections) the new
+            # composition cannot reproduce. Live-but-idle sessions have
+            # already flushed their last turn to the row, so the persisted
+            # count is authoritative; a busy session is rejected below.
+            row = db.get_session(session_id)
+            if row and int(row.get("message_count") or 0) > 0:
+                return _err(
+                    rid,
+                    4010,
+                    "session already has messages — the preset is fixed once "
+                    "the conversation starts (start a new chat to switch modes)",
+                )
             db.set_session_agent_preset(session_id, preset_id)
         except Exception as e:
             return _err(rid, 5000, f"persist preset failed: {e}")

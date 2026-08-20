@@ -2229,9 +2229,12 @@ export const ar = defineLocale({
       presets: {
         ariaLabel: name => `وضع الوكيل: ${name}`,
         applyFailed: 'تعذر تبديل وضع الوكيل',
+        locked: 'بدأت المحادثة — وضع الوكيل مثبت هنا. ابدأ محادثة جديدة للتبديل.',
         none: 'لا يوجد وضع',
         openMenu: 'تبديل وضع الوكيل',
-        title: 'وضع الوكيل'
+        skillsLabel: 'المهارات',
+        title: 'وضع الوكيل',
+        toolsLabel: 'الأدوات'
       }
     }
   },

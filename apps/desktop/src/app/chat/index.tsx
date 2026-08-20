@@ -6,7 +6,6 @@ import type * as React from 'react'
 import { memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router'
 
-import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
 import type { SubmitTextOptions } from '@/app/session/hooks/use-prompt-actions/utils'
 import { Thread } from '@/components/assistant-ui/thread'
 import { Backdrop } from '@/components/Backdrop'
@@ -59,7 +58,6 @@ import type { ChatBarState } from './composer/types'
 import { type DroppedFile, partitionDroppedFiles } from './hooks/use-composer-actions'
 import { type DragKind, useFileDropZone } from './hooks/use-file-drop-zone'
 import { ProfileTag } from './profile-tag'
-import { PresetPill } from './preset-pill'
 import { useRuntimeMessageRepository } from './runtime-repository'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 import { useSessionView } from './session-view'
@@ -112,7 +110,6 @@ function ChatHeader({
   const sessions = useStore($sessions)
   const pinnedSessionIds = useStore($pinnedSessionIds)
   const profiles = useStore($profiles)
-  const { requestGateway } = useGatewayRequest()
 
   const activeStoredSession =
     (selectedSessionId && sessions.find(session => sessionMatchesStoredId(session, selectedSessionId))) || null
@@ -150,7 +147,6 @@ function ChatHeader({
         }}
       >
         {showProfileTag && <ProfileTag className="pointer-events-auto mr-1.5" profile={activeStoredSession?.profile} />}
-        {activeStoredSession && <PresetPill request={requestGateway} session={activeStoredSession} />}
         <SessionActionsMenu
           align="start"
           onDelete={selectedSessionId ? onDeleteSelectedSession : undefined}
@@ -347,6 +343,15 @@ export const ChatView = memo(function ChatView({
     migrateSessionDraft(selectedSessionId, queueSessionKey)
     migrateQueuedPrompts(selectedSessionId, queueSessionKey)
   }, [queueSessionKey, selectedSessionId, sessions])
+
+  // The stored row for the conversation this surface's composer is attached to
+  // (same lineage match the header uses). Drives the composer's Agent-mode
+  // pill: a live session names/switches its own preset; null (brand-new draft)
+  // makes the pill pin the config default.
+  const activeStoredSession = useMemo(
+    () => (selectedSessionId ? sessions.find(s => sessionMatchesStoredId(s, selectedSessionId)) ?? null : null),
+    [selectedSessionId, sessions]
+  )
 
   // Transcript-side stops (the streaming message's hover Stop, the runtime's
   // cancel) are explicit halts, same as the composer's Stop button: park any
@@ -595,6 +600,7 @@ export const ChatView = memo(function ChatView({
               onSubmit={onSubmit}
               onTranscribeAudio={onTranscribeAudio}
               queueSessionKey={queueSessionKey}
+              session={activeStoredSession}
               sessionId={activeSessionId}
               state={chatBarState}
             />

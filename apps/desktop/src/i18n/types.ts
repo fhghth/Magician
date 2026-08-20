@@ -2291,9 +2291,12 @@ export interface Translations {
       presets: {
         ariaLabel: (name: string) => string
         applyFailed: string
+        locked: string
         none: string
         openMenu: string
+        skillsLabel: string
         title: string
+        toolsLabel: string
       }
     }
   }

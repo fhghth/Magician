@@ -17,3 +17,12 @@
     spotify: false
     video: false
     tts: false
+- id: skills
+  kind: skills
+  config:
+    - test-driven-development
+    - systematic-debugging
+    - requesting-code-review
+    - simplify-code
+    - codebase-inspection
+    - github-pr-workflow

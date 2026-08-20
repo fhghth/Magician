@@ -11216,6 +11216,10 @@ def _(rid, params: dict) -> dict:
         except Exception as e:
             return _err(rid, 5001, str(e))
 
+    if key == "agent_presets.default":
+        _write_config_key("agent_presets.default", str(value or ""))
+        return _ok(rid, {"key": key, "value": str(value or "")})
+
     return _err(rid, 4002, f"unknown config key: {key}")
 
 

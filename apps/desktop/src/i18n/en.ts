@@ -2707,9 +2707,12 @@ export const en: Translations = {
       presets: {
         ariaLabel: name => `Agent mode: ${name}`,
         applyFailed: 'Could not switch agent mode',
+        locked: 'Conversation started — agent mode is fixed here. Start a new chat to switch.',
         none: 'no mode',
         openMenu: 'Switch agent mode',
-        title: 'Agent mode'
+        skillsLabel: 'Skills',
+        title: 'Agent mode',
+        toolsLabel: 'Tools'
       }
     }
   },

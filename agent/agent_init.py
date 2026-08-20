@@ -1437,6 +1437,8 @@ def init_agent(
     agent._agent_preset = None
     agent._preset_persona = None
     agent._agent_preset_id = None
+    agent._preset_skill_allow = None
+    agent._preset_skill_deny = ()
     _preset_id = agent_preset
     try:
         if not _preset_id and session_db is not None and session_id:
@@ -1455,7 +1457,7 @@ def init_agent(
             _preset_id = ""
     if _preset_id:
         try:
-            from hermes_cli.agent_presets import apply_preset_tools, load_preset
+            from hermes_cli.agent_presets import apply_preset_skills, apply_preset_tools, load_preset
             _preset = load_preset(_preset_id)
             agent._agent_preset = _preset
             agent._agent_preset_id = _preset_id
@@ -1465,6 +1467,9 @@ def init_agent(
             enabled_toolsets, disabled_toolsets = apply_preset_tools(
                 _preset, enabled_toolsets, disabled_toolsets
             )
+            _skill_allow, _skill_deny = apply_preset_skills(_preset)
+            agent._preset_skill_allow = _skill_allow
+            agent._preset_skill_deny = tuple(_skill_deny)
             if not quiet_mode:
                 _preset_label = (
                     f" ({_preset.name})"

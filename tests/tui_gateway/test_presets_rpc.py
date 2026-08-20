@@ -93,6 +93,7 @@ def test_preset_apply_rejects_unknown_preset(server):
 
 def test_preset_apply_persists_to_session_db(server):
     db = MagicMock()
+    db.get_session = MagicMock(return_value={"id": "s1", "message_count": 0})
     server._get_db = MagicMock(return_value=db)
     server._find_live_session_by_key = MagicMock(return_value=None)
     out = _ok(_call(server, "preset.apply", {"session_id": "s1", "preset_id": "code"}))
@@ -100,10 +101,25 @@ def test_preset_apply_persists_to_session_db(server):
     assert out == {"applied": True, "recomposed": False}
 
 
+def test_preset_apply_rejects_session_with_history(server):
+    # Harness blank-session rule: a preset may only be swapped while the
+    # session is still blank. A session that already produced messages is
+    # fixed — swapping tools mid-conversation would leave logged tool calls
+    # the new composition cannot make.
+    db = MagicMock()
+    db.get_session = MagicMock(return_value={"id": "s1", "message_count": 3})
+    server._get_db = MagicMock(return_value=db)
+    server._find_live_session_by_key = MagicMock(return_value=None)
+    out = _call(server, "preset.apply", {"session_id": "s1", "preset_id": "minimal"})
+    assert _err(out)["code"] == 4010
+    db.set_session_agent_preset.assert_not_called()
+
+
 def test_preset_apply_busy_session_is_deferred(server):
     agent = MagicMock()
     agent._agent_preset_id = "standard"
     db = MagicMock()
+    db.get_session = MagicMock(return_value={"id": "s1", "message_count": 0})
     session = {
         "agent": agent,
         "session_key": "s1",
@@ -124,6 +140,7 @@ def test_preset_apply_recomposes_live_session(server, monkeypatch):
     new_agent = MagicMock()
     new_agent._agent_preset_id = "minimal"
     db = MagicMock()
+    db.get_session = MagicMock(return_value={"id": "s1", "message_count": 0})
     session = {
         "agent": old_agent,
         "session_key": "s1",
@@ -157,6 +174,7 @@ def test_preset_apply_recomposes_live_session(server, monkeypatch):
 
 def test_preset_apply_deferred_build_agent_noop(server):
     db = MagicMock()
+    db.get_session = MagicMock(return_value={"id": "s1", "message_count": 0})
     session = {"agent": None, "session_key": "s1", "running": False}
     server._get_db = MagicMock(return_value=db)
     server._find_live_session_by_key = MagicMock(return_value=("sid1", session))

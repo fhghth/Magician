@@ -2456,9 +2456,12 @@ export const zhHant = defineLocale({
       presets: {
         ariaLabel: name => `代理模式：${name}`,
         applyFailed: '切換代理模式失敗',
+        locked: '對話已開始——代理模式在此固定。新建對話可重新選擇模式。',
         none: '無模式',
         openMenu: '切換代理模式',
-        title: '代理模式'
+        skillsLabel: '技能',
+        title: '代理模式',
+        toolsLabel: '工具'
       }
     }
   },

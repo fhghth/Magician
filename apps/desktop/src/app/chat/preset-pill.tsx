@@ -17,7 +17,7 @@ import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { ChevronDown, SlidersHorizontal } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { applySessionPreset, loadPresets, presetLabel, $presetDefault, $presets, $presetsLoading, type RequestGateway } from '@/store/presets'
+import { $presetDefault, $presets, $presetsLoading, applySessionPreset, loadPresets, presetLabel, type RequestGateway, setDefaultPreset } from '@/store/presets'
 import type { SessionInfo } from '@/types/hermes'
 
 const PILL = cn(
@@ -26,13 +26,29 @@ const PILL = cn(
 )
 
 /**
- * Chat-header agent-mode pill. Names the preset the session runs under and
- * opens a menu of every discoverable preset; picking one recomposes the
- * session on the backend (persona + tools) while the conversation stays put.
- * Mirrors the CLI's `/preset` in the desktop's own surface — the backend is
- * authoritative, so the label re-syncs from the session row on reload.
+ * Agent-mode pill. In a live session it names the preset the session runs
+ * under and recomposes the session on the backend when changed (persona +
+ * tools). With `session` null (a new/draft chat with no session yet) it names
+ * and switches the config default that brand-new sessions start on — the same
+ * backstage the CLI's `/preset` defaults to. The backend is authoritative, so
+ * the label re-syncs from the session row / preset list on reload.
+ *
+ * Harness blank-session rule (deepseek-harness agent-presets): the preset is
+ * only swappable while the session is still blank. Once the conversation has
+ * any message (`message_count > 0`) the composition is fixed — swapping tools
+ * mid-conversation would leave logged tool calls the new composition cannot
+ * make — so the pill locks with an explanatory tooltip. A blank stored
+ * session and a brand-new draft both stay switchable.
  */
-export function PresetPill({ session, request }: { request: RequestGateway; session: SessionInfo | null }) {
+export function PresetPill({
+  request,
+  session,
+  tipSide = 'bottom'
+}: {
+  request: RequestGateway
+  session: SessionInfo | null
+  tipSide?: 'top' | 'bottom'
+}) {
   const { t } = useI18n()
   const copy = t.shell.statusbar.presets
   const presets = useStore($presets)
@@ -41,6 +57,10 @@ export function PresetPill({ session, request }: { request: RequestGateway; sess
   const [open, setOpen] = useState(false)
   const [applying, setApplying] = useState<string | null>(null)
   const [optimisticId, setOptimisticId] = useState<string | null>(null)
+
+  // The conversation started (any message) — the preset is fixed. Matches the
+  // backend's blank-session rule on preset.apply (error 4010).
+  const locked = session !== null && (session.message_count ?? 0) > 0
 
   // A different session (or a backend-confirmed row change) re-bases the pill.
   useEffect(() => {
@@ -64,12 +84,19 @@ export function PresetPill({ session, request }: { request: RequestGateway; sess
   }
 
   const onPick = (value: string) => {
-    if (!session || value === activeId || applying) {
+    if (!value || value === activeId || applying || locked) {
       return
     }
+
     setApplying(value)
-    void applySessionPreset(session.id, value, request, copy.applyFailed).then(ok => {
+
+    const landed = session
+      ? applySessionPreset(session.id, value, request, copy.applyFailed)
+      : setDefaultPreset(value, request, copy.applyFailed)
+
+    void landed.then(ok => {
       setApplying(null)
+
       if (ok) {
         setOptimisticId(value)
         setOpen(false)
@@ -79,16 +106,22 @@ export function PresetPill({ session, request }: { request: RequestGateway; sess
 
   return (
     <DropdownMenu onOpenChange={setOpenWithRelease} open={open}>
-      <Tip label={copy.openMenu} side="bottom">
-        <DropdownMenuTrigger asChild>
-          <Button aria-label={copy.ariaLabel(label)} className={PILL} type="button" variant="ghost">
+      <Tip label={locked ? copy.locked : copy.openMenu} side={tipSide}>
+        <DropdownMenuTrigger asChild disabled={locked}>
+          <Button
+            aria-label={copy.ariaLabel(label)}
+            className={PILL}
+            disabled={locked}
+            type="button"
+            variant="ghost"
+          >
             <SlidersHorizontal className="size-3 shrink-0 opacity-70" />
             <span className="max-w-28 truncate">{loading && !presets ? <GlyphSpinner className="opacity-50" spinner="braille" /> : label}</span>
             <ChevronDown className="size-2.5 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
       </Tip>
-      <DropdownMenuContent align="start" className="w-72 p-1" side="bottom" sideOffset={8}>
+      <DropdownMenuContent align="start" className="w-72 p-1" side={tipSide} sideOffset={8}>
         <DropdownMenuLabel>{copy.title}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {!presets || presets.length === 0 ? (
@@ -103,7 +136,7 @@ export function PresetPill({ session, request }: { request: RequestGateway; sess
             {presets.map(preset => (
               <DropdownMenuRadioItem
                 className="items-start gap-2"
-                disabled={Boolean(applying)}
+                disabled={Boolean(applying) || locked}
                 key={preset.id}
                 value={preset.id}
               >
@@ -117,7 +150,12 @@ export function PresetPill({ session, request }: { request: RequestGateway; sess
                   )}
                   {preset.toolset_summary && (
                     <span className="text-[0.6875rem] leading-snug text-(--ui-text-tertiary) opacity-70">
-                      {preset.toolset_summary}
+                      {copy.toolsLabel}: {preset.toolset_summary}
+                    </span>
+                  )}
+                  {preset.skills_summary && (
+                    <span className="text-[0.6875rem] leading-snug text-(--ui-text-tertiary) opacity-70">
+                      {copy.skillsLabel}: {preset.skills_summary}
                     </span>
                   )}
                 </span>

@@ -2885,9 +2885,12 @@ export const zh: Translations = {
       presets: {
         ariaLabel: name => `代理模式：${name}`,
         applyFailed: '切换代理模式失败',
+        locked: '对话已开始——代理模式在此固定。新建对话可重新选择模式。',
         none: '无模式',
         openMenu: '切换代理模式',
-        title: '代理模式'
+        skillsLabel: '技能',
+        title: '代理模式',
+        toolsLabel: '工具'
       }
     }
   },

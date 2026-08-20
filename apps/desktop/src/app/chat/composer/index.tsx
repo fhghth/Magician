@@ -22,6 +22,8 @@ import { $threadScrolledUp } from '@/store/thread-scroll'
 import { $autoSpeakReplies } from '@/store/voice-prefs'
 import { useTheme } from '@/themes'
 
+import { PresetPill } from '../preset-pill'
+
 import { AttachmentList } from './attachments'
 import {
   acceptsTriggerCompletion,
@@ -86,6 +88,7 @@ export function ChatBar({
   maxRecordingSeconds = 120,
   queueSessionKey,
   sessionId,
+  session,
   state,
   onCancel,
   onAddUrl,
@@ -1189,18 +1192,27 @@ export function ChatBar({
                     composerSurfaceGlass
                   )}
                 />
-                <CodingStatusRow
-                  onBranchOff={handleBranchOff}
-                  onConvertBranch={handleConvertBranch}
-                  onListBranches={handleListBranches}
-                  // A tile's rail reviews ITS worktree: pin the pane's scope to
-                  // this surface's cwd. Main keeps the classic follow-the-
-                  // active-session scope (null).
-                  onOpen={() => toggleReview(scope.target === 'main' ? null : (cwd ?? null))}
-                  onOpenWorktree={openInWorktree}
-                  onSwitchBranch={handleSwitchBranch}
-                  repoPath={cwd}
-                />
+                <div className="flex min-w-0 items-stretch">
+                  {gateway && (
+                    <div className="flex min-h-7 shrink-0 items-center border-b border-(--ui-stroke-tertiary) px-2">
+                      <PresetPill request={(method, params) => gateway.request(method, params)} session={session ?? null} />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <CodingStatusRow
+                      onBranchOff={handleBranchOff}
+                      onConvertBranch={handleConvertBranch}
+                      onListBranches={handleListBranches}
+                      // A tile's rail reviews ITS worktree: pin the pane's scope to
+                      // this surface's cwd. Main keeps the classic follow-the-
+                      // active-session scope (null).
+                      onOpen={() => toggleReview(scope.target === 'main' ? null : (cwd ?? null))}
+                      onOpenWorktree={openInWorktree}
+                      onSwitchBranch={handleSwitchBranch}
+                      repoPath={cwd}
+                    />
+                  </div>
+                </div>
                 <div
                   className={cn(
                     'relative z-1 flex min-h-0 w-full flex-col gap-(--composer-row-gap) overflow-hidden rounded-[inherit] px-(--composer-surface-pad-x) py-(--composer-surface-pad-y) transition-opacity duration-200 ease-out',

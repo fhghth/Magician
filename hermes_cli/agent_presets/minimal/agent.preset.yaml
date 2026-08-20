@@ -15,3 +15,6 @@
     - toolset: file
     - toolset: terminal
     - toolset: todo
+- id: skills
+  kind: skills
+  config: []

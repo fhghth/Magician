@@ -33,6 +33,7 @@ const PRESETS: AgentPresetInfo[] = [
     description: 'Fixed persona, file access only',
     id: 'minimal',
     name: 'Minimal',
+    skills_summary: '(no skills)',
     toolset_summary: 'file, terminal, todo',
     trust: 'system'
   },
@@ -41,6 +42,7 @@ const PRESETS: AgentPresetInfo[] = [
     description: 'Default composition',
     id: 'standard',
     name: 'Standard',
+    skills_summary: '(default skills)',
     toolset_summary: '',
     trust: 'system'
   }
@@ -88,7 +90,36 @@ describe('PresetPill', () => {
     expect(within(menu).getByText('Minimal')).toBeTruthy()
     expect(within(menu).getByText('Standard')).toBeTruthy()
     expect(within(menu).getByText('Fixed persona, file access only')).toBeTruthy()
-    expect(within(menu).getByText('file, terminal, todo')).toBeTruthy()
+    expect(within(menu).getByText('Tools: file, terminal, todo')).toBeTruthy()
+    expect(within(menu).getByText('Skills: (no skills)')).toBeTruthy()
+  })
+
+  it('locks once the conversation has messages (blank-session rule)', async () => {
+    const request = makeRequest()
+    render(<PresetPill request={request} session={{ ...SESSION, message_count: 2 }} />)
+
+    // The pill stays visible (names the fixed mode) but the trigger is
+    // disabled — the preset is fixed once the conversation started.
+    const button = await screen.findByRole('button', { name: 'Agent mode: Standard' })
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.pointerDown(button, { button: 0 })
+    expect(screen.queryByRole('menu')).toBeNull()
+    const calls = vi.mocked(request).mock.calls.map(([method]) => method)
+    expect(calls).not.toContain('preset.apply')
+    expect(calls).not.toContain('config.set')
+  })
+
+  it('still lets a blank stored session switch modes', async () => {
+    const request = makeRequest()
+    render(<PresetPill request={request} session={SESSION} />)
+
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Agent mode: Standard' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /Minimal/ }))
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith('preset.apply', { session_id: 's1', preset_id: 'minimal' })
+    })
   })
 
   it('switches the preset through the gateway and re-labels the pill', async () => {
@@ -127,6 +158,29 @@ describe('PresetPill', () => {
     render(<PresetPill request={makeRequest()} session={{ ...SESSION, agent_preset: null }} />)
 
     expect(await screen.findByRole('button', { name: 'Agent mode: Standard' })).toBeTruthy()
+  })
+
+  it('new-chat (no session) mode names the config default', async () => {
+    $presets.set(PRESETS)
+    $presetDefault.set('minimal')
+    render(<PresetPill request={makeRequest()} session={null} />)
+
+    expect(await screen.findByRole('button', { name: 'Agent mode: Minimal' })).toBeTruthy()
+  })
+
+  it('new-chat mode pins the default via config.set', async () => {
+    $presets.set(PRESETS)
+    $presetDefault.set('standard')
+    const request = makeRequest()
+    render(<PresetPill request={request} session={null} />)
+
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Agent mode: Standard' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /Minimal/ }))
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith('config.set', { key: 'agent_presets.default', value: 'minimal' })
+      expect(screen.getByRole('button', { name: 'Agent mode: Minimal' })).toBeTruthy()
+    })
   })
 
   it('renders in the active locale', async () => {

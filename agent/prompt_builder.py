@@ -1565,6 +1565,25 @@ def _skill_should_show(
     return True
 
 
+def _preset_skill_allowed(
+    skill_name: str,
+    frontmatter_name: str,
+    only_skill_names: "tuple[str, ...] | None",
+    deny_skill_names: "tuple[str, ...]",
+) -> bool:
+    """Agent-preset skills gate (allow-list / ``~name`` deny).
+
+    ``only_skill_names is None`` keeps the default set; a non-None allow-list
+    restricts the index to those names. Denied names drop out either way.
+    """
+    if only_skill_names is not None:
+        if skill_name not in only_skill_names and frontmatter_name not in only_skill_names:
+            return False
+    if skill_name in deny_skill_names or frontmatter_name in deny_skill_names:
+        return False
+    return True
+
+
 def _current_session_platform_hint() -> str:
     """Return the active platform without importing the gateway package on CLI startup."""
     platform = os.environ.get("HERMES_PLATFORM") or os.environ.get("HERMES_SESSION_PLATFORM")
@@ -1585,6 +1604,8 @@ def build_skills_system_prompt(
     available_tools: "set[str] | None" = None,
     available_toolsets: "set[str] | None" = None,
     compact_categories: "frozenset[str] | None" = None,
+    only_skill_names: "tuple[str, ...] | None" = None,
+    deny_skill_names: "tuple[str, ...]" = (),
 ) -> str:
     """Build a compact skill index for the system prompt.
 
@@ -1605,9 +1626,20 @@ def build_skills_system_prompt(
     the rendered index. Nothing is ever hidden: every skill name stays
     visible and loadable via ``skill_view`` / ``skills_list``; only the
     descriptions are dropped, and a footer note explains the demotion.
+
+    ``only_skill_names`` / ``deny_skill_names`` are the agent-preset skills
+    line (see ``apply_preset_skills``): an allow-list restricts the index to
+    those skills and an empty allow-list turns skills off entirely (returns
+    ""); ``~name`` exclusions arrive as ``deny_skill_names``. Both are
+    deliberately NOT the ``compact_categories`` soft demotion — a preset
+    decides the capability surface, so entries are filtered, not renamed.
     """
     skills_dir = get_skills_dir()
     external_dirs = get_all_skills_dirs()[1:]  # skip local (index 0)
+
+    if only_skill_names is not None and not only_skill_names:
+        # Preset turns skills off ([] allow-list): no index at all.
+        return ""
 
     if not skills_dir.exists() and not external_dirs:
         return ""
@@ -1625,6 +1657,8 @@ def build_skills_system_prompt(
         _platform_hint,
         tuple(sorted(disabled)),
         tuple(sorted(compact_categories or ())),
+        tuple(sorted(only_skill_names or ())),
+        tuple(sorted(deny_skill_names)),
     )
     with _SKILLS_PROMPT_CACHE_LOCK:
         cached = _SKILLS_PROMPT_CACHE.get(cache_key)
@@ -1654,6 +1688,8 @@ def build_skills_system_prompt(
                 continue
             if frontmatter_name in disabled or skill_name in disabled:
                 continue
+            if not _preset_skill_allowed(skill_name, frontmatter_name, only_skill_names, deny_skill_names):
+                continue
             if not _skill_should_show(
                 entry.get("conditions") or {},
                 available_tools,
@@ -1675,6 +1711,13 @@ def build_skills_system_prompt(
                 continue
             skill_name = entry["skill_name"]
             if entry["frontmatter_name"] in disabled or skill_name in disabled:
+                continue
+            if not _preset_skill_allowed(
+                skill_name,
+                entry["frontmatter_name"],
+                only_skill_names,
+                deny_skill_names,
+            ):
                 continue
             if not _skill_should_show(
                 extract_skill_conditions(frontmatter),
@@ -1758,6 +1801,13 @@ def build_skills_system_prompt(
                 if frontmatter_name in seen_skill_names:
                     continue
                 if frontmatter_name in disabled or skill_name in disabled:
+                    continue
+                if not _preset_skill_allowed(
+                    skill_name,
+                    frontmatter_name,
+                    only_skill_names,
+                    deny_skill_names,
+                ):
                     continue
                 if not _skill_should_show(
                     extract_skill_conditions(frontmatter),

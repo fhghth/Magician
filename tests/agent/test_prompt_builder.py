@@ -364,6 +364,50 @@ class TestBuildSkillsSystemPrompt:
         assert "cached-skill" not in second
 
 
+    def test_allow_list_restricts_index_to_named_skills(self, monkeypatch, tmp_path):
+        """An agent-preset allow-list filters the index to the named skills.
+
+        The preset's skills line decides the capability surface, so entries
+        outside the allow-list are filtered out — unlike the soft category
+        demotion, which only drops descriptions.
+        """
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        for name in ("keep-me", "drop-me"):
+            d = tmp_path / "skills" / "tools" / name
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {name} desc\n---\n")
+
+        result = build_skills_system_prompt(only_skill_names=("keep-me",))
+        assert "keep-me" in result
+        assert "drop-me" not in result
+        # The unrestricted call is a distinct cache entry.
+        full = build_skills_system_prompt()
+        assert "drop-me" in full
+
+    def test_empty_allow_list_turns_skills_off(self, monkeypatch, tmp_path):
+        """A preset's [] skills line (e.g. minimal) removes the index entirely."""
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        d = tmp_path / "skills" / "tools" / "only-skill"
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(
+            "---\nname: only-skill\ndescription: Only skill\n---\n"
+        )
+
+        assert build_skills_system_prompt(only_skill_names=()) == ""
+
+    def test_deny_list_excludes_named_skills(self, monkeypatch, tmp_path):
+        """A ~name skills entry denies that skill while keeping the rest."""
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        for name in ("keep-me", "deny-me"):
+            d = tmp_path / "skills" / "tools" / name
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {name} desc\n---\n")
+
+        result = build_skills_system_prompt(deny_skill_names=("deny-me",))
+        assert "keep-me" in result
+        assert "deny-me" not in result
+
+
 
 
 

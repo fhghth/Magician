@@ -2536,9 +2536,12 @@ export const ja = defineLocale({
       presets: {
         ariaLabel: name => `エージェントモード：${name}`,
         applyFailed: 'エージェントモードを切り替えられませんでした',
+        locked: '会話が始まったため、このエージェントモードに固定されます。切り替えるには新しいチャットを開始してください。',
         none: 'モードなし',
         openMenu: 'エージェントモードを切り替え',
-        title: 'エージェントモード'
+        skillsLabel: 'スキル',
+        title: 'エージェントモード',
+        toolsLabel: 'ツール'
       }
     }
   },

@@ -9,6 +9,7 @@ export interface AgentPresetInfo {
   description: string
   id: string
   name: string
+  skills_summary: string
   toolset_summary: string
   trust: string
 }
@@ -74,6 +75,26 @@ export async function applySessionPreset(
     setSessions(rows => rows.map(row => (row.id === sessionId ? { ...row, agent_preset: presetId } : row)))
     return true
   } catch (error) {
+    notifyError(error, failMessage)
+    return false
+  }
+}
+
+/** Pin the preset used for brand-new sessions (no session exists yet — the
+ *  draft/new-chat surface). Writes `agent_presets.default` in config.yaml via
+ *  config.set, optimistic against `$presetDefault` with rollback on failure. */
+export async function setDefaultPreset(
+  presetId: string,
+  request: RequestGateway,
+  failMessage: string
+): Promise<boolean> {
+  const previous = $presetDefault.get()
+  $presetDefault.set(presetId)
+  try {
+    await request('config.set', { key: 'agent_presets.default', value: presetId })
+    return true
+  } catch (error) {
+    $presetDefault.set(previous)
     notifyError(error, failMessage)
     return false
   }

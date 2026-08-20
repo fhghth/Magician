@@ -51,6 +51,31 @@ class TestPresetParam:
         assert not any(n.startswith("browser_") for n in names)
         assert "web_search" not in names
 
+    def test_minimal_turns_skills_off(self):
+        agent = _make_agent(agent_preset="minimal")
+        assert agent._preset_skill_allow == []
+        # The empty allow-list removes the skills index from the system prompt.
+        prompt = agent._cached_system_prompt or agent._build_system_prompt()
+        assert "available_skills" not in prompt
+        assert "<available_skills>" not in prompt
+
+    def test_code_preset_restricts_skills_to_development_set(self):
+        agent = _make_agent(agent_preset="code")
+        assert agent._preset_skill_allow == [
+            "test-driven-development",
+            "systematic-debugging",
+            "requesting-code-review",
+            "simplify-code",
+            "codebase-inspection",
+            "github-pr-workflow",
+        ]
+        assert agent._preset_skill_deny == ()
+
+    def test_no_preset_leaves_skills_untouched(self):
+        agent = _make_agent()
+        assert agent._preset_skill_allow is None
+        assert agent._preset_skill_deny == ()
+
     def test_unknown_preset_falls_back_gracefully(self):
         agent = _make_agent(agent_preset="nope-preset")
         assert agent._agent_preset is None

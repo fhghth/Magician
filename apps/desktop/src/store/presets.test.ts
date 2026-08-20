@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { $sessions, setSessions } from './session'
 import {
   $presetDefault,
   $presets,
   $presetsLoading,
+  type AgentPresetInfo,
   applySessionPreset,
   loadPresets,
   presetLabel,
-  type AgentPresetInfo
+  setDefaultPreset
 } from './presets'
+import { $sessions, setSessions } from './session'
 
 const MINIMAL: AgentPresetInfo = {
   broken: false,
@@ -17,6 +18,7 @@ const MINIMAL: AgentPresetInfo = {
   id: 'minimal',
   name: 'Minimal',
   toolset_summary: 'file, terminal, todo',
+  skills_summary: '(no skills)',
   trust: 'system'
 }
 
@@ -26,12 +28,14 @@ const STANDARD: AgentPresetInfo = {
   id: 'standard',
   name: 'Standard',
   toolset_summary: '',
+  skills_summary: '(default skills)',
   trust: 'system'
 }
 
 function request(calls: { method: string; params?: Record<string, unknown> }[]) {
   return async <T>(method: string, params?: Record<string, unknown>) => {
     calls.push({ method, params })
+
     return {} as T
   }
 }
@@ -49,6 +53,7 @@ describe('presets store', () => {
 
     await loadPresets(async <T>(method: string, params?: Record<string, unknown>) => {
       calls.push({ method, params })
+
       return { presets: [MINIMAL, STANDARD], default: 'standard' } as T
     })
     await loadPresets(async <T>(method: string) => ({} as T))
@@ -90,12 +95,36 @@ describe('presets store', () => {
   it('reports failure and leaves the row untouched', async () => {
     setSessions([{ id: 's1', title: 'T', started_at: 0, last_active: 0, is_active: true, ended_at: null, input_tokens: 0, message_count: 0, model: null, output_tokens: 0, preview: null, source: null, tool_call_count: 0 }])
     const notifyError = vi.spyOn(await import('./notifications'), 'notifyError').mockImplementation(() => 'nid')
+
     const ok = await applySessionPreset('s1', 'minimal', async () => {
       throw new Error('busy')
     }, 'fail message')
 
     expect(ok).toBe(false)
     expect($sessions.get()[0].agent_preset).toBeUndefined()
+    expect(notifyError).toHaveBeenCalledWith(expect.any(Error), 'fail message')
+  })
+
+  it('pins the default preset for new chats via config.set', async () => {
+    $presetDefault.set('standard')
+    const calls: { method: string; params?: Record<string, unknown> }[] = []
+    const ok = await setDefaultPreset('minimal', request(calls), 'fail')
+
+    expect(ok).toBe(true)
+    expect(calls).toEqual([{ method: 'config.set', params: { key: 'agent_presets.default', value: 'minimal' } }])
+    expect($presetDefault.get()).toBe('minimal')
+  })
+
+  it('rolls the default back and notifies on a failed pin', async () => {
+    $presetDefault.set('standard')
+    const notifyError = vi.spyOn(await import('./notifications'), 'notifyError').mockImplementation(() => 'nid')
+
+    const ok = await setDefaultPreset('minimal', async () => {
+      throw new Error('socket closed')
+    }, 'fail message')
+
+    expect(ok).toBe(false)
+    expect($presetDefault.get()).toBe('standard')
     expect(notifyError).toHaveBeenCalledWith(expect.any(Error), 'fail message')
   })
 })
